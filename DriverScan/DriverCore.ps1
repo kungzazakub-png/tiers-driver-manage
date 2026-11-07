@@ -69,7 +69,7 @@ function Find-CatalogUpdates($installed, $catalog, $hostInfo = (Get-HostInfo)) {
             if ($curV -and $newV -le $curV) { continue }
             $found += [pscustomobject]@{
                 Id = "cat:$($c.name) $($c.version)"; Title = "$($c.name) $($c.version)"; Class = $d.Class; Maker = $c.publisher
-                Date = $c.date; SizeMB = $c.sizeMB; Source = 'Catalog'; Raw = $c
+                Date = $c.date; SizeMB = $c.sizeMB; Source = 'Catalog'; Raw = $c; InstanceId = $d.InstanceId; DeviceName = $d.Name
             }
             break
         }
@@ -225,7 +225,7 @@ function Find-MsCatalogUpdates($installed, $hostInfo = (Get-HostInfo), $maxQueri
         $found += [pscustomobject]@{
             Id = "ms:$($best.UpdateId)"; Title = "$($d.Name): $($best.Title) [$(if ($d.Version) { 'now ' + $d.Version } else { 'no driver yet' })]"; Class = $d.Class; Maker = $d.Maker
             Date = $(if ($best.Date) { $best.Date.ToString('yyyy-MM-dd') } else { '' }); SizeMB = $best.SizeMB; Source = 'Microsoft Catalog'
-            Raw = [pscustomobject]@{ UpdateId = $best.UpdateId; Key = $key; Name = $d.Name }
+            Raw = [pscustomobject]@{ UpdateId = $best.UpdateId; Key = $key; Name = $d.Name }; InstanceId = $d.InstanceId; DeviceName = $d.Name
         }
     }
     $script:MsCatalogFailures = $failed
@@ -328,7 +328,7 @@ function Find-NvidiaUpdates($installed, $hostInfo = (Get-HostInfo), $get = { par
         $date = ''; try { $date = ([datetime]::ParseExact(([string]$info.ReleaseDateTime), 'ddd MMM dd, yyyy', [Globalization.CultureInfo]::InvariantCulture)).ToString('yyyy-MM-dd') } catch {}
         $found += [pscustomobject]@{
             Id = "ven:nvidia:$($info.Version)"; Title = "NVIDIA GeForce Game Ready Driver $($info.Version) [now $($cur.ToString('0.00'))]"; Class = 'DISPLAY'; Maker = 'NVIDIA'
-            Date = $date; SizeMB = $mb; Source = 'NVIDIA'
+            Date = $date; SizeMB = $mb; Source = 'NVIDIA'; InstanceId = $d.InstanceId; DeviceName = $d.Name
             Raw = [pscustomobject]@{ Url = [string]$info.DownloadURL; Version = [string]$info.Version; Signer = 'NVIDIA Corporation'; SilentArgs = '-s -noreboot -noeula'; InstanceId = $d.InstanceId; DeviceName = $d.Name }
         }
     }
@@ -522,4 +522,78 @@ function Get-DevicesWithoutDriver($entities = $null) {
 function Get-UnresolvedDevices($devices, $offers) {
     $covered = @($offers | Where-Object { $_.Raw -and $_.Raw.Name } | ForEach-Object { $_.Raw.Name })
     return @($devices | Where-Object { $covered -notcontains $_.Name })
+}
+
+
+# ---------- driver backup before install, and roll back ----------
+# Before a driver is replaced, the package currently bound to that device is exported with pnputil (Windows' own tool) into
+# C:\ProgramData\TierS Driver Manage\Backups\<date-time>\<n>\ with a manifest, so the user can roll back later.
+# Only devices we can identify (Microsoft Catalog, NVIDIA and catalog offers) are backed up; Windows Update offers carry no device.
+$BackupRoot = Join-Path $env:ProgramData 'TierS Driver Manage\Backups'
+
+# $run is for tests: { param($pnputilArgs) -> output text } (sets $LASTEXITCODE like a native command).
+function Invoke-PnpUtil([string[]]$pnpArgs) { return (& pnputil.exe @pnpArgs 2>&1 | Out-String) }
+
+function Get-DeviceDriverInfo($instanceId) {
+    try {
+        $p = @{}
+        foreach ($x in @(Get-PnpDeviceProperty -InstanceId $instanceId -KeyName 'DEVPKEY_Device_DriverInfPath', 'DEVPKEY_Device_DriverVersion' -ErrorAction Stop)) { $p[$x.KeyName] = $x.Data }
+        return [pscustomobject]@{ Inf = [string]$p['DEVPKEY_Device_DriverInfPath']; Version = [string]$p['DEVPKEY_Device_DriverVersion'] }
+    } catch { return $null }
+}
+
+# Exports the driver now bound to the device. Returns the manifest entry, or $null when there is nothing to back up
+# (no driver yet, or a driver built into Windows: rolling back then simply removes the new package).
+function Backup-DeviceDriver($instanceId, $deviceName, $setDir, $index, $info = $null, $run = { param($a) Invoke-PnpUtil $a }) {
+    if (-not $info) { $info = Get-DeviceDriverInfo $instanceId }
+    if (-not $info -or -not $info.Inf) { return $null }
+    $entry = [ordered]@{ Device = $deviceName; InstanceId = $instanceId; OldInf = $info.Inf; OldVersion = $info.Version; Folder = ''; Time = (Get-Date).ToString('s') }
+    if ($info.Inf -match '^oem\d+\.inf$') {
+        $dir = Join-Path $setDir ([string]$index)
+        New-Item -ItemType Directory -Force $dir | Out-Null
+        [void](& $run @('/export-driver', $info.Inf, $dir))
+        if (-not (Get-ChildItem $dir -Filter *.inf -Recurse -ErrorAction SilentlyContinue)) { return $null }
+        $entry['Folder'] = [string]$index
+    }
+    return [pscustomobject]$entry
+}
+
+function Save-BackupManifest($setDir, $entries) {
+    New-Item -ItemType Directory -Force $setDir | Out-Null
+    [IO.File]::WriteAllText((Join-Path $setDir 'manifest.json'), (@($entries) | ConvertTo-Json -Depth 4), (New-Object Text.UTF8Encoding($true)))
+}
+
+# Every backed-up device, newest first.
+function Get-DriverBackups($root = $BackupRoot) {
+    if (-not (Test-Path $root)) { return @() }
+    $all = foreach ($set in Get-ChildItem $root -Directory -ErrorAction SilentlyContinue) {
+        $mf = Join-Path $set.FullName 'manifest.json'
+        if (-not (Test-Path $mf)) { continue }
+        foreach ($e in @([IO.File]::ReadAllText($mf, [Text.Encoding]::UTF8) | ConvertFrom-Json | ForEach-Object { $_ })) {   # unroll: Windows PowerShell 5.1 returns a JSON array as ONE object
+            [pscustomobject]@{ Set = $set.Name; SetDir = $set.FullName; Device = $e.Device; InstanceId = $e.InstanceId; OldInf = $e.OldInf; OldVersion = $e.OldVersion; Folder = $e.Folder; Time = $e.Time }
+        }
+    }
+    return @($all | Sort-Object Time -Descending)
+}
+
+# Puts the old driver back: install the saved package (when one was saved), then remove the package the device uses now so Windows
+# falls back to the old one (or to the built-in driver). $infoNow / $run are for tests.
+function Restore-DeviceDriver($backup, $infoNow = $null, $run = { param($a) Invoke-PnpUtil $a }) {
+    $res = [pscustomobject]@{ Success = $false; Message = '' }
+    try {
+        if (-not $infoNow) { $infoNow = Get-DeviceDriverInfo $backup.InstanceId }
+        if (-not $infoNow -or -not $infoNow.Inf) { throw 'The device is not present or has no driver now.' }
+        if ($infoNow.Inf -ieq $backup.OldInf) { $res.Success = $true; $res.Message = 'The device already uses the backed-up driver.'; return $res }
+        if ($backup.Folder) {
+            $dir = Join-Path $backup.SetDir $backup.Folder
+            if (-not (Get-ChildItem $dir -Filter *.inf -Recurse -ErrorAction SilentlyContinue)) { throw 'The backup files are missing.' }
+            $out = & $run @('/add-driver', (Join-Path $dir '*.inf'), '/subdirs', '/install')
+            if ($LASTEXITCODE -notin 0, 3010) { throw "Could not add the old driver: $($out.Trim())" }
+        }
+        if ($infoNow.Inf -notmatch '^oem\d+\.inf$') { throw 'The current driver is built into Windows and cannot be removed.' }
+        $out2 = & $run @('/delete-driver', $infoNow.Inf, '/uninstall', '/force')
+        if ($LASTEXITCODE -notin 0, 3010) { throw "Could not remove the new driver: $($out2.Trim())" }
+        $res.Success = $true; $res.Message = "Rolled back $($backup.Device) to version $($backup.OldVersion). A restart may be needed."
+    } catch { $res.Message = $_.Exception.Message }
+    return $res
 }

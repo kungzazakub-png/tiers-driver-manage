@@ -241,7 +241,16 @@ $InstallBlock = {
                 $state.Log += "Restore point skipped: $($_.Exception.Message)`r`n"
             }
         }
-        $ok = 0
+        # keep a copy of the drivers about to be replaced, so they can be rolled back from the Backups tab
+        try {
+            $state.Status = 'Backing up the current drivers...'
+            $setDir = Join-Path $BackupRoot (Get-Date -Format 'yyyyMMdd-HHmmss'); $bk = @(); $bn = 0
+            foreach ($bi in @($state.CatalogItems | Where-Object { $_.InstanceId })) {
+                try { $bn++; $be = Backup-DeviceDriver $bi.InstanceId $bi.DeviceName $setDir $bn; if ($be) { $bk += $be; $state.Log += "Backed up the current driver of $($bi.DeviceName) ($($be.OldVersion))`r`n" } }
+                catch { $state.Log += "Backup skipped for $($bi.DeviceName): $($_.Exception.Message)`r`n" }
+            }
+            if ($bk.Count) { Save-BackupManifest $setDir $bk }
+        } catch { $state.Log += "Backup skipped: $($_.Exception.Message)`r`n" }        $ok = 0
         foreach ($id in @($state.Ids)) { $state.ItemStatus[$id] = 'wait' }
         $wuIds = @($state.Ids | Where-Object { $_ -notlike 'cat:*' -and $_ -notlike 'ms:*' -and $_ -notlike 'ven:*' })
         if ($wuIds.Count -gt 0 -and $state.Cancel) {
@@ -484,6 +493,20 @@ function Invoke-RetryClick {
     Invoke-InstallClick
 }
 
+# Rolls one backed-up device back (asks first: it removes the driver the device uses now).
+function Invoke-RollbackClick {
+    $row = $script:bkGrid.CurrentRow
+    if (-not $row -or -not $row.Tag) { return }
+    $b = $row.Tag
+    $ask = [Windows.Forms.MessageBox]::Show("Roll back $($b.Device) to version $($b.OldVersion)?`nThe driver it uses now will be removed from this PC. A restart may be needed.", 'Roll back driver', 'YesNo', 'Question')
+    if ($ask -ne 'Yes') { return }
+    $script:form.Cursor = 'WaitCursor'
+    try { $r = Restore-DeviceDriver $b } finally { $script:form.Cursor = 'Default' }
+    $script:ctx.Log += $(if ($r.Success) { '[OK] ' } else { '[FAILED] ' }) + "Roll back $($b.Device): $($r.Message)`r`n"
+    $script:txtLog.Text = $script:ctx.Log; Write-LogFile $script:ctx.Log
+    $script:lblStatus.Text = $(if ($r.Success) { 'Done: ' } else { 'Stopped: ' }) + $r.Message
+    Update-BackupsView
+}
 function Invoke-BannerClick($name) {
     switch ($name) {
         'stop' { if ($script:ctx.State) { $script:ctx.State.Cancel = $true; Update-RunUi $script:ctx.State } }
@@ -872,6 +895,30 @@ if ($SelfTest) {
     Check 'no-driver: a device with no driver at all is offered the catalog driver' ($offersND.Count -eq 1 -and $offersND[0].Title -match 'no driver yet' -and $offersND[0].Raw.Name -eq 'Unknown USB Printer')
     $unres = @(Get-UnresolvedDevices $noDrv $offersND)
     Check 'no-driver: only the device nothing matched is reported as unresolved' ($unres.Count -eq 1 -and $unres[0].Name -eq 'Mystery device')
+    # 5h) driver backup and roll back (pnputil is faked; the real export was run separately on a real device)
+    $tb = Join-Path $env:TEMP ('ds_bk_' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory $tb | Out-Null
+    $calls = [System.Collections.ArrayList]@()
+    $fakeRun = { param($a) [void]$calls.Add(($a -join ' ')); if ($a[0] -eq '/export-driver') { Set-Content (Join-Path $a[2] 'old.inf') ';old'; Set-Content (Join-Path $a[2] 'old.sys') 'x' }; $null = cmd /c 'exit 0'; '' }.GetNewClosure()
+    $e1 = Backup-DeviceDriver 'USB\VID_1&PID_2\X' 'Test Bluetooth' (Join-Path $tb 'set1') 1 ([pscustomobject]@{ Inf = 'oem34.inf'; Version = '1.0.0.0' }) $fakeRun
+    Check 'backup: a third-party driver is exported with pnputil and recorded' ($e1.Folder -eq '1' -and $e1.OldInf -eq 'oem34.inf' -and ($calls -join ';') -match '/export-driver oem34.inf' -and (Test-Path (Join-Path $tb 'set1\1\old.inf')))
+    $e2 = Backup-DeviceDriver 'PCI\X' 'Built-in device' (Join-Path $tb 'set1') 2 ([pscustomobject]@{ Inf = 'netrtl64.inf'; Version = '10.0' }) $fakeRun
+    Check 'backup: a built-in driver is recorded without files' ($e2.Folder -eq '' -and $e2.OldInf -eq 'netrtl64.inf')
+    Check 'backup: a device with no driver gets no entry' ($null -eq (Backup-DeviceDriver 'PCI\Y' 'No driver' (Join-Path $tb 'set1') 3 ([pscustomobject]@{ Inf = ''; Version = '' }) $fakeRun))
+    Save-BackupManifest (Join-Path $tb 'set1') @($e1, $e2)
+    $listed = @(Get-DriverBackups $tb)
+    Check 'backup: saved backups are listed with their folder' ($listed.Count -eq 2 -and $listed[0].SetDir -like '*set1')
+    $calls.Clear()
+    $rr = Restore-DeviceDriver ($listed | Where-Object Device -eq 'Test Bluetooth') ([pscustomobject]@{ Inf = 'oem99.inf'; Version = '2.0.0.0' }) $fakeRun
+    Check 'rollback: old package is added, then the new one removed' ($rr.Success -and $calls.Count -eq 2 -and $calls[0] -match '^/add-driver .*\*\.inf /subdirs /install$' -and $calls[1] -eq '/delete-driver oem99.inf /uninstall /force')
+    $calls.Clear()
+    $rr = Restore-DeviceDriver ($listed | Where-Object Device -eq 'Test Bluetooth') ([pscustomobject]@{ Inf = 'oem34.inf'; Version = '1.0.0.0' }) $fakeRun
+    Check 'rollback: nothing is touched when the device already uses the saved driver' ($rr.Success -and $calls.Count -eq 0)
+    $rr = Restore-DeviceDriver ($listed | Where-Object Device -eq 'Test Bluetooth') ([pscustomobject]@{ Inf = 'netrtl64.inf'; Version = '9' }) $fakeRun
+    Check 'rollback: a built-in current driver is never deleted' ((-not $rr.Success) -and $rr.Message -match 'built into Windows')
+    $failRun = { param($a) $null = cmd /c 'exit 5'; 'access denied' }
+    $rr = Restore-DeviceDriver ($listed | Where-Object Device -eq 'Test Bluetooth') ([pscustomobject]@{ Inf = 'oem99.inf'; Version = '2.0.0.0' }) $failRun
+    Check 'rollback: a pnputil failure is reported' ((-not $rr.Success) -and $rr.Message -match 'access denied')
+    Remove-Item $tb -Recurse -Force -ErrorAction SilentlyContinue
     # 6) full GUI flow in DryRun: scan -> review -> install -> results
     [Windows.Forms.Application]::EnableVisualStyles()
     $script:DryRun = $true
@@ -902,6 +949,7 @@ if ($SelfTest) {
     Check 'gui: all-ok ending offers restart and scan again' ((@($script:bannerBtns | Where-Object Visible | ForEach-Object Name) -join ',') -eq 'restart,rescan')
     Check 'gui: summary chip reflects the run, not the old scan' ($script:sumUpdates.Text -match '2')
     Check 'gui: progress bar hidden when idle' (-not $script:progress.Visible)
+    Check 'gui: header logo and window icon are loaded' ((@($f.Controls | ForEach-Object { $_.Controls } | Where-Object { $_ -is [Windows.Forms.PictureBox] -and $_.Image }).Count -ge 1) -and $null -ne $f.Icon)
     [Windows.Forms.Application]::DoEvents(); $f.PerformLayout()   # Top values are only final after layout
     $tops = @($f.Controls | Sort-Object TabIndex | ForEach-Object { $_.Top })
     Check 'gui: tab order follows the visual order top to bottom' (($tops -join ',') -eq (($tops | Sort-Object) -join ','))

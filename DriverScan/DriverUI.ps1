@@ -335,9 +335,26 @@ function Update-Cards($inventory, $updates, $missing, $old) {
     else { $script:sumProblems.Text = 'No problem devices found'; $script:sumProblems.Image = (New-Icon 'check' $T.Good 22); $script:sumProblems.ForeColor = $T.Good }
 }
 
+function Update-BackupsView {
+    $script:bkGrid.Rows.Clear()
+    $list = @(Get-DriverBackups)
+    foreach ($b in $list) {
+        $when = try { ([datetime]$b.Time).ToString('yyyy-MM-dd HH:mm') } catch { [string]$b.Time }
+        $idx = $script:bkGrid.Rows.Add($when, $b.Device, $b.OldVersion, $(if ($b.Folder) { 'Saved copy' } else { 'Built-in driver' }))
+        $script:bkGrid.Rows[$idx].Tag = $b
+        $script:bkGrid.Rows[$idx].Cells[2].Tag = [string]$b.OldVersion
+    }
+    $script:bkGrid.Visible = ($list.Count -gt 0); $script:lblNoBackups.Visible = ($list.Count -eq 0)
+    Set-RollbackButton
+}
+
+function Set-RollbackButton {
+    $show = $script:viewPanels['backups'].Visible -and (-not $script:isBusy) -and ($script:bkGrid.SelectedRows.Count -gt 0 -or ($script:bkGrid.CurrentRow -and $script:bkGrid.Rows.Count -gt 0))
+    $script:btnRollback.Visible = [bool]$show
+}
 function Show-View($name) {
     $T = $script:Theme
-    foreach ($k in 'updates', 'installed', 'log') {
+    foreach ($k in 'updates', 'installed', 'backups', 'log') {
         $script:viewPanels[$k].Visible = ($k -eq $name)
         $b = $script:viewBtns[$k]
         $b.Tag = $(if ($k -eq $name) { 'active' } else { '' })
@@ -345,6 +362,7 @@ function Show-View($name) {
         $b.Font = New-Font 10.5 ($k -eq $name)
         $b.Invalidate()
     }
+    if ($name -eq 'backups') { Update-BackupsView } elseif ($script:btnRollback) { $script:btnRollback.Visible = $false }
     $script:banner.Visible = ($name -eq 'updates') -and $script:bannerWanted
     if ($script:banner.Visible) { Update-BannerLayout }
     if ($name -eq 'installed' -and $script:invGrid.IsHandleCreated) { $script:invGrid.ClearSelection() }
@@ -359,7 +377,7 @@ function Update-SelectionUi {
     if ($review) { foreach ($r in $script:grid.Rows) { if ($r.Cells[0].Value -eq $true -and -not (Test-InfoRow $r)) { $n++; $sum += [double]$r.Cells[6].Tag } } }
     $rowCount = $script:grid.Rows.Count
     $total = @($script:grid.Rows | Where-Object { -not (Test-InfoRow $_) }).Count   # tickable rows only
-    $canAct = $review -and (-not $script:isBusy)
+    $canAct = $review -and (-not $script:isBusy) -and (-not $script:viewPanels['backups'].Visible)
     $script:btnInstall.Text = $(if ($n -gt 0) { "Install $n" } else { 'Install' })
     $script:btnInstall.Visible = $canAct -and ($total -gt 0)
     $script:btnInstall.Enabled = $canAct -and ($n -gt 0)
@@ -377,6 +395,7 @@ function Update-SelectionUi {
     else { $script:lblEmpty.Text = "Scan   ›   Review   ›   Install`r`n`r`nClick [Scan drivers]. The program finds newer drivers, you review the list, then click Install.`r`nScanning takes about 1-2 minutes and needs an internet connection."; $script:lblEmpty.ForeColor = $T.Muted }
     Set-UpdatesChip
     if ($total -gt 0 -and $script:grid.IsHandleCreated -and $script:grid.Visible -and $script:viewPanels['updates'].Visible) { $script:grid.ClearSelection() }
+    if ($script:btnRollback) { Set-RollbackButton }
 }
 
 function Set-Busy($busy) {
@@ -469,7 +488,7 @@ function New-MainForm {
     # logo tile + window/taskbar icon (both optional: a missing file must not stop the program)
     try {
         $logo = New-Object Windows.Forms.PictureBox; $logo.SetBounds(14, 4, 48, 48); $logo.SizeMode = 'Zoom'; $logo.BackColor = [Drawing.Color]::White
-        $ms = New-Object IO.MemoryStream(,[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'tiers-logo.png'))); $src = [Drawing.Image]::FromStream($ms); $logo.Image = New-Object Drawing.Bitmap($src); $src.Dispose(); $ms.Dispose()   # copy into memory: an open file handle would block updates and re-installs; $logo.TabStop = $false; $header.Controls.Add($logo)
+        $ms = New-Object IO.MemoryStream(,[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'tiers-logo.png'))); $src = [Drawing.Image]::FromStream($ms); $logo.Image = New-Object Drawing.Bitmap($src); $src.Dispose(); $ms.Dispose(); $logo.TabStop = $false; $header.Controls.Add($logo)   # (images are copied into memory above: an open file handle would block updates and re-installs)
         $ms2 = New-Object IO.MemoryStream(,[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'TierS.ico'))); $form.Icon = New-Object Drawing.Icon($ms2); $ms2.Dispose()
     } catch { }
     # --- action bar: ONE primary button, live status, thin progress ---
@@ -517,7 +536,7 @@ function New-MainForm {
     $views = New-Object Windows.Forms.Panel; $views.Dock = 'Top'; $views.Height = 44; $views.BackColor = $T.Page
     $script:viewBtns = @{}
     $x = 20
-    foreach ($v in @(@('updates', 'Updates', 120), @('installed', 'Installed drivers', 170), @('log', 'Log', 90))) {
+    foreach ($v in @(@('updates', 'Updates', 120), @('installed', 'Installed drivers', 170), @('backups', 'Backups', 110), @('log', 'Log', 90))) {
         $b = New-Object Windows.Forms.Button
         $b.Text = $v[1]; $b.Size = New-Object Drawing.Size($v[2], 40); $b.Location = New-Object Drawing.Point($x, 2); $x += $v[2] + 4
         $b.FlatStyle = 'Flat'; $b.FlatAppearance.BorderSize = 0; $b.BackColor = $T.Page; $b.UseVisualStyleBackColor = $false; $b.Cursor = 'Hand'
@@ -573,8 +592,17 @@ function New-MainForm {
     $script:txtLog.BorderStyle = 'None'; $script:txtLog.BackColor = [Drawing.Color]::White; $script:txtLog.ForeColor = $T.Text; $script:txtLog.Font = New-Font 10
     $pLog.Controls.Add($script:txtLog)
 
-    $script:viewPanels = @{ updates = $pUpdates; installed = $pInstalled; log = $pLog }
-    $listCard.Controls.AddRange(@($pUpdates, $pInstalled, $pLog)); $listCard.Controls.Add($script:banner)
+    # backups tab: drivers saved before each install, with a roll-back button in the footer
+    $pBackups = New-Object Windows.Forms.Panel; $pBackups.Dock = 'Fill'; $pBackups.BackColor = [Drawing.Color]::White
+    $script:bkGrid = New-Object Windows.Forms.DataGridView
+    Initialize-Grid $script:bkGrid
+    $script:bkGrid.ReadOnly = $true; $script:bkGrid.AccessibleName = 'Driver backups'
+    Add-GridColumns $script:bkGrid @(@('Backed up', 20, $true), @('Device', 40, $true), @('Saved version', 18, $true), @('Backup', 22, $false)) $false $false
+    $script:lblNoBackups = New-Object Windows.Forms.Label; $script:lblNoBackups.Dock = 'Fill'; $script:lblNoBackups.TextAlign = 'MiddleCenter'; $script:lblNoBackups.Font = New-Font 12; $script:lblNoBackups.ForeColor = $T.Muted; $script:lblNoBackups.BackColor = [Drawing.Color]::White
+    $script:lblNoBackups.Text = "No backups yet`r`nBefore a driver is replaced, the one it replaces is saved here so you can roll back."
+    $pBackups.Controls.Add($script:bkGrid); $pBackups.Controls.Add($script:lblNoBackups)
+    $script:viewPanels = @{ updates = $pUpdates; installed = $pInstalled; backups = $pBackups; log = $pLog }
+    $listCard.Controls.AddRange(@($pUpdates, $pInstalled, $pBackups, $pLog)); $listCard.Controls.Add($script:banner)
     $body.Controls.Add($listCard)
 
     # --- footer: selection facts and the install action (only while there is something to install) ---
@@ -585,9 +613,12 @@ function New-MainForm {
     $script:chkRestore = New-Object Windows.Forms.CheckBox; $script:chkRestore.Text = 'Create a system restore point before installing (lets you roll back if something goes wrong)'; $script:chkRestore.AutoSize = $true; $script:chkRestore.Location = New-Object Drawing.Point(20, 42); $script:chkRestore.ForeColor = $T.Text; $script:chkRestore.Checked = $true
     $script:btnInstall = New-Object TierButton; $script:btnInstall.Text = 'Install'; $script:btnInstall.Size = New-Object Drawing.Size(240, 48); $script:btnInstall.Anchor = 'Top,Right'; $script:btnInstall.Visible = $false
     Set-ButtonStyle $script:btnInstall 'primary'; $script:btnInstall.Enabled = $false
-    $footer.Controls.AddRange(@($script:chkAll, $script:lblSel, $script:chkRestore, $script:btnInstall))
+    $script:btnRollback = New-Object TierButton; $script:btnRollback.Text = 'Roll back selected'; $script:btnRollback.Size = New-Object Drawing.Size(240, 48); $script:btnRollback.Visible = $false
+    Set-ButtonStyle $script:btnRollback 'primary'
+    $footer.Controls.AddRange(@($script:chkAll, $script:lblSel, $script:chkRestore, $script:btnInstall, $script:btnRollback))
     $installBtn = $script:btnInstall
-    $place = { $installBtn.Location = New-Object Drawing.Point(($footer.Width - 260), 14) }.GetNewClosure()
+    $rollBtn = $script:btnRollback
+    $place = { $installBtn.Location = New-Object Drawing.Point(($footer.Width - 260), 14); $rollBtn.Location = New-Object Drawing.Point(($footer.Width - 260), 14) }.GetNewClosure()
     $footer.Add_Resize($place); & $place
 
     # docking order: Fill first, then Bottom, then the Top bars from the lowest to the highest
@@ -595,10 +626,10 @@ function New-MainForm {
 
     # keyboard path runs top to bottom (TabIndex is per parent; panels were added bottom-up so set it explicitly)
     $header.TabIndex = 0; $actions.TabIndex = 1; $strip.TabIndex = 2; $views.TabIndex = 3; $body.TabIndex = 4; $footer.TabIndex = 5
-    $script:banner.TabIndex = 0; $pUpdates.TabIndex = 1; $pInstalled.TabIndex = 2; $pLog.TabIndex = 3
+    $script:banner.TabIndex = 0; $pUpdates.TabIndex = 1; $pInstalled.TabIndex = 2; $pBackups.TabIndex = 3; $pLog.TabIndex = 4
     $script:btnScan.TabIndex = 0; $script:btnUpdate.TabIndex = 1
     $script:sumInstalled.TabIndex = 0; $script:sumUpdates.TabIndex = 1; $script:sumProblems.TabIndex = 2
-    $i = 0; foreach ($k in 'updates', 'installed', 'log') { $script:viewBtns[$k].TabIndex = $i++ }
+    $i = 0; foreach ($k in 'updates', 'installed', 'backups', 'log') { $script:viewBtns[$k].TabIndex = $i++ }
     $script:grid.TabIndex = 0; $script:invGrid.TabIndex = 0
     $script:chkAll.TabIndex = 0; $script:chkRestore.TabIndex = 1; $script:btnInstall.TabIndex = 2
     $script:progress.TabStop = $false; $script:picStatus.TabStop = $false; $script:lblStatus.TabStop = $false
@@ -616,6 +647,8 @@ function New-MainForm {
 
     $script:btnScan.Add_Click({ Invoke-ScanClick })
     $script:btnInstall.Add_Click({ Invoke-InstallClick })
+    $script:btnRollback.Add_Click({ Invoke-RollbackClick })
+    $script:bkGrid.Add_SelectionChanged({ Set-RollbackButton })
     $script:timer.Add_Tick({ Invoke-Tick })
 
     $script:chkAll.Add_CheckedChanged({
