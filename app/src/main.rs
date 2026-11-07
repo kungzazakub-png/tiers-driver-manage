@@ -20,5 +20,10 @@ fn main() {
         match winsys::devices_without_driver() { Ok((d, l)) => println!("devices without driver: {} {:?}", d.len(), l), Err(e) => println!("without-driver FAILED: {e}") }
         return;
     }
+    if arg == "--diag-wu" {
+        match tdm::wu::search_drivers() { Ok(v) => { println!("Windows Update offers: {}", v.len()); for o in v.iter().take(8) { println!("  {} | {} | {} | {} | {:?} MB", o.title, o.class, o.maker, o.date, o.size_mb); } } Err(e) => println!("WU search FAILED: {e}") }
+        return;
+    }
     println!("TierS Driver Manage (Rust port, work in progress)");
 }
+
