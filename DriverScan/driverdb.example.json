@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "updated": "2026-11-07",
+  "note": "Do not hand-write hashes: use New-CatalogEntry.ps1, it downloads the file and fills sha256/signer. Download hosts are limited by the list inside DriverCore.ps1 ($BuiltInHosts); this file cannot add hosts. os/arch/class are optional filters.",
+  "drivers": [
+    {
+      "name": "NVIDIA GeForce Driver",
+      "publisher": "NVIDIA",
+      "match": ["PCI\\VEN_10DE&DEV_*"],
+      "class": "DISPLAY",
+      "version": "32.0.16.2114",
+      "date": "2026-10-27",
+      "sizeMB": 800,
+      "type": "installer",
+      "signer": "NVIDIA Corporation",
+      "silentArgs": "-s -noreboot",
+      "os": ["10", "11"],
+      "arch": ["x64"],
+      "url": "https://us.download.nvidia.com/Windows/EXAMPLE/EXAMPLE-desktop-win10-win11-64bit-international-dch-whql.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

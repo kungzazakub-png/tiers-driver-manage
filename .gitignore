@@ -1,0 +1,6 @@
+﻿dist/
+*.exe
+.impeccable/
+*.log
+DriverScan/.impeccable/
+DriverScan/_backup/
