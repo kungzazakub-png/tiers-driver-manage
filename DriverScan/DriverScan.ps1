@@ -57,7 +57,7 @@ function Install-Self {
     New-Item -ItemType Directory -Force $dest | Out-Null
     foreach ($f in 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1', 'New-CatalogEntry.ps1', 'DriverScan.cmd', 'driverdb.example.json', 'README.txt', 'TierS.ico', 'tiers-logo.png', 'TierS.vbs', 'TierS Driver Manage.exe') {
         $s = Join-Path $here $f
-        if (Test-Path $s) { Copy-Item $s $dest -Force }
+        if (Test-Path $s) { try { Copy-Item $s $dest -Force } catch { Write-SetupLog "could not copy $f (in use?): $($_.Exception.Message)" } }   # a file in use is skipped, not fatal
     }
     # keep a catalog the user already extended, unless the one shipped now is newer
     $sc = Join-Path $here 'driverdb.json'; $dc = Join-Path $dest 'driverdb.json'
@@ -439,7 +439,7 @@ function Invoke-UpdateTick {
         $script:ctx.Log += $s.Result.Message + "`r`n"; Write-LogFile $script:ctx.Log
         $script:lblStatus.Text = 'Done: ' + $s.Result.Message + ' Restarting the program...'
         $exe = Join-Path $PSScriptRoot 'TierS Driver Manage.exe'
-        if (Test-Path $exe) { Start-Process $exe }
+        if (Test-Path $exe) { Start-Process $exe -ArgumentList '--wait-for-previous' }   # the launcher waits for this instance to exit, then starts
         $script:form.Close()
     } else {
         $script:ctx.Log += "[FAILED] Program update: $($s.Result.Message)`r`n"; $script:txtLog.Text = $script:ctx.Log; Write-LogFile $script:ctx.Log

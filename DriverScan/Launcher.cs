@@ -3,6 +3,7 @@ using System.IO;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 [assembly: AssemblyTitle("TierS Driver Manage")]
@@ -14,9 +15,25 @@ using System.Windows.Forms;
 // The program's own process: hosts the PowerShell engine in-process (no powershell.exe, no console window), so Task Manager,
 // the taskbar and the Apps list show "TierS Driver Manage" with its icon instead of "Windows PowerShell".
 static class Launcher {
+    [DllImport("user32.dll")] static extern IntPtr FindWindow(string cls, string title);
+    [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+    static Mutex instance;   // held for the life of the process
     static void Log(string m) { try { File.AppendAllText(Path.Combine(Path.GetTempPath(), "TierS-launcher.log"), DateTime.Now.ToString("HH:mm:ss ") + m + "\r\n"); } catch { } }
     [STAThread]
     static int Main(string[] args) {
+        // One copy at a time: two copies installing drivers together (or one holding files the other updates) is asking for trouble.
+        // "--wait-for-previous" is used by the program's own restart after an update: wait for the old copy to finish closing.
+        bool wait = Array.IndexOf(args, "--wait-for-previous") >= 0;
+        args = Array.FindAll(args, a => a != "--wait-for-previous");
+        instance = new Mutex(false, @"Global\TierS.DriverManage.Instance");
+        bool got;
+        try { got = instance.WaitOne(wait ? 20000 : 0); } catch (AbandonedMutexException) { got = true; }
+        if (!got) {
+            IntPtr h = FindWindow(null, "TierS Driver Manage");
+            if (h != IntPtr.Zero) { ShowWindow(h, 9); SetForegroundWindow(h); }
+            return 0;
+        }
         try {
             string dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             var iss = InitialSessionState.CreateDefault();

@@ -469,8 +469,8 @@ function New-MainForm {
     # logo tile + window/taskbar icon (both optional: a missing file must not stop the program)
     try {
         $logo = New-Object Windows.Forms.PictureBox; $logo.SetBounds(14, 4, 48, 48); $logo.SizeMode = 'Zoom'; $logo.BackColor = [Drawing.Color]::White
-        $logo.Image = [Drawing.Image]::FromFile((Join-Path $PSScriptRoot 'tiers-logo.png')); $logo.TabStop = $false; $header.Controls.Add($logo)
-        $form.Icon = New-Object Drawing.Icon((Join-Path $PSScriptRoot 'TierS.ico'))
+        $ms = New-Object IO.MemoryStream(,[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'tiers-logo.png'))); $src = [Drawing.Image]::FromStream($ms); $logo.Image = New-Object Drawing.Bitmap($src); $src.Dispose(); $ms.Dispose()   # copy into memory: an open file handle would block updates and re-installs; $logo.TabStop = $false; $header.Controls.Add($logo)
+        $ms2 = New-Object IO.MemoryStream(,[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'TierS.ico'))); $form.Icon = New-Object Drawing.Icon($ms2); $ms2.Dispose()
     } catch { }
     # --- action bar: ONE primary button, live status, thin progress ---
     $actions = New-Object Windows.Forms.Panel; $actions.Dock = 'Top'; $actions.Height = 84; $actions.BackColor = [Drawing.Color]::White
