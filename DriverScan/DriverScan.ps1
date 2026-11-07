@@ -802,6 +802,15 @@ if ($SelfTest) {
     Check 'update apply: script with a syntax error refused and nothing changed' ((-not $r.Success) -and $r.Message -match 'ไวยากรณ์' -and (Get-Content (Join-Path $inst 'DriverCore.ps1') -Raw) -eq $before)
     Check 'update apply: the user''s driverdb.json is never overwritten' ((Get-Content (Join-Path $inst 'driverdb.json') -Raw) -match 'mine')
     Remove-Item $tu -Recurse -Force -ErrorAction SilentlyContinue
+    # 5d) shipped catalog: Intel graphics entries match the right GPUs only
+    $shipped = @(Read-DriverCatalog (Join-Path $PSScriptRoot 'driverdb.json'))
+    $gpu = { param($n, $id, $v) @([pscustomobject]@{ InstanceId = ''; Name = $n; Class = 'DISPLAY'; Maker = 'Intel Corporation'; Version = $v; HardwareId = @($id) }) }
+    $offerNames = { param($devs) (@(Find-CatalogUpdates $devs $shipped ([pscustomobject]@{ Arch = 'x64'; Os = '11' })) | ForEach-Object { $_.Raw.name }) -join ',' }
+    Check 'catalog: Arc A770 with an old driver gets the Arc package' ((& $offerNames (& $gpu 'Intel(R) Arc(TM) A770 Graphics' 'PCI\VEN_8086&DEV_56A0&SUBSYS_00000000&REV_08' '31.0.101.4000')) -eq 'Intel Arc Graphics Driver')
+    Check 'catalog: UHD Graphics 770 (14th gen) gets the 11th-14th gen package' ((& $offerNames (& $gpu 'Intel(R) UHD Graphics 770' 'PCI\VEN_8086&DEV_4680&SUBSYS_00000000&REV_0C' '31.0.101.4000')) -eq 'Intel Graphics Driver (11th-14th Gen)')
+    Check 'catalog: 10th gen UHD 630 (legacy) gets no offer' ((& $offerNames (& $gpu 'Intel(R) UHD Graphics 630' 'PCI\VEN_8086&DEV_9BC8&SUBSYS_00000000&REV_05' '27.20.100.8000')) -eq '')
+    Check 'catalog: an up-to-date Intel graphics driver gets no offer' ((& $offerNames (& $gpu 'Intel(R) Arc(TM) A770 Graphics' 'PCI\VEN_8086&DEV_56A0&SUBSYS_00000000&REV_08' '32.0.101.9175')) -eq '')
+    Check 'catalog: every shipped installer entry has https url, sha256, signer and silent switches' (@($shipped | Where-Object { $_.type -eq 'installer' -and ($_.url -notmatch '^https://' -or $_.sha256 -notmatch '^[0-9A-F]{64}$' -or -not $_.signer -or -not $_.silentArgs) }).Count -eq 0)
     # 6) full GUI flow in DryRun: scan -> review -> install -> results
     [Windows.Forms.Application]::EnableVisualStyles()
     $script:DryRun = $true
