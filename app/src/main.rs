@@ -1,4 +1,4 @@
-﻿#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use tdm::engine::Config;
 use tdm::{catalog, ui, winsys};
 
@@ -26,6 +26,8 @@ fn single_instance(wait: bool) -> Option<windows::Win32::Foundation::HANDLE> {
     for _ in 0..if wait { 40 } else { 1 } {
         let h = unsafe { CreateMutexW(None, true, w!("Global\\TierS.DriverManage.Instance")) }.ok()?;
         if unsafe { GetLastError() } != ERROR_ALREADY_EXISTS { return Some(h); }
+        // release our handle, or it would keep the other copy's mutex alive and we would never get it
+        unsafe { let _ = windows::Win32::Foundation::CloseHandle(h); }
         if !wait { return None; }
         std::thread::sleep(std::time::Duration::from_millis(500));
     }
