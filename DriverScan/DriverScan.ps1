@@ -117,7 +117,7 @@ $script:OldYears = 3           # installed drivers older than this are flagged
 $script:CatalogUrl = ''   # optional https address of a shared catalog; empty = use driverdb.json next to this script
 $script:CatalogPath = if ($script:CatalogUrl) { $script:CatalogUrl } else { Join-Path $PSScriptRoot 'driverdb.json' }
 $script:LogFile = Join-Path $env:ProgramData 'TierS Driver Manage\DriverScan.log'
-$script:AppVersion = '1.0.0'   # bumped by Publish-Update.ps1
+$script:AppVersion = '1.0.1'   # bumped by Publish-Update.ps1
 # Self-update settings: update.json = {"repo":"owner/name"} (GitHub). Without a repo or the public key nothing is checked. Developer runs (-NoInstall) never replace themselves.
 $script:UpdateRepo = ''; $script:UpdatePublicKey = ''
 try { $uc = Join-Path $PSScriptRoot 'update.json'; if (Test-Path $uc) { $script:UpdateRepo = [string](Get-Content $uc -Raw | ConvertFrom-Json).repo } } catch {}
