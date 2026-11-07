@@ -67,6 +67,9 @@ impl Fake {
     pub fn new(routes: Vec<(&str, &str)>) -> Fake {
         Fake { routes: routes.into_iter().map(|(k, v)| (k.to_string(), v.as_bytes().to_vec())).collect(), calls: Default::default() }
     }
+    pub fn with_bytes(routes: Vec<(&str, Vec<u8>)>) -> Fake {
+        Fake { routes: routes.into_iter().map(|(k, v)| (k.to_string(), v)).collect(), calls: Default::default() }
+    }
     fn find(&self, url: &str) -> Result<Vec<u8>, String> {
         self.calls.borrow_mut().push(url.to_string());
         self.routes.iter().find(|(k, _)| url.contains(k.as_str())).map(|(_, v)| v.clone()).ok_or_else(|| format!("unexpected url {url}"))
@@ -78,3 +81,4 @@ impl Http for Fake {
     fn post_form(&self, url: &str, _f: &[(&str, &str)]) -> Result<Vec<u8>, String> { self.find(url) }
     fn download(&self, url: &str, dest: &Path) -> Result<(), String> { std::fs::write(dest, self.find(url)?).map_err(|e| e.to_string()) }
 }
+
