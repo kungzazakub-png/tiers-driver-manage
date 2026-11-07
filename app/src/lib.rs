@@ -5,8 +5,12 @@ pub mod http;
 pub mod mscatalog;
 pub mod nvidia;
 pub mod policy;
+pub mod trust;
 pub mod update;
 pub mod version;
+pub mod winsys;
+
+
 
 
 
