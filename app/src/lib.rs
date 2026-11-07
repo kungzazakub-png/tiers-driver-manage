@@ -3,6 +3,10 @@ pub mod catalog;
 pub mod crypto;
 pub mod http;
 pub mod mscatalog;
+pub mod nvidia;
 pub mod policy;
+pub mod update;
 pub mod version;
+
+
 
