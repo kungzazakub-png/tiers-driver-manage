@@ -21,7 +21,8 @@ $text = [regex]::Replace($text, "AppVersion = '[\d\.]+'", "AppVersion = '$Versio
 New-Item -ItemType Directory -Force $dist | Out-Null
 $zip = Join-Path $dist "TierS-Driver-Manage-$Version.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue
-$files = 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1', 'New-CatalogEntry.ps1', 'README.txt', 'TierS.ico', 'tiers-logo.png' | ForEach-Object { Join-Path $src $_ }
+# Binary assets (logo, icon) are NOT part of an update: older installed versions keep them open, which made their updater fail. Setup ships them.
+$files = 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1', 'New-CatalogEntry.ps1', 'README.txt' | ForEach-Object { Join-Path $src $_ }
 Compress-Archive -Path $files -DestinationPath $zip
 
 # 3) signed manifest
@@ -40,5 +41,6 @@ Copy-Item (Join-Path $PSScriptRoot 'TierS-Driver-Manage-Setup.exe') (Join-Path $
 $assets = @($zip, $manifest, (Join-Path $dist 'TierS-Driver-Manage-Setup.exe'))
 if ($NoUpload) { "Built in $dist (not uploaded). Upload $($assets.Count) files to the release v$Version of $repo."; return }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { "Built in $dist. GitHub CLI (gh) is not installed: create release v$Version on https://github.com/$repo/releases/new and attach these files:`n  " + ($assets -join "`n  "); return }
-& gh release create "v$Version" @assets --repo $repo --title "TierS Driver Manage $Version" --notes $(if ($Notes) { $Notes } else { "Version $Version" })
+$ErrorActionPreference = 'Continue'; & gh release view "v$Version" --repo $repo 2>$null | Out-Null; $exists = ($LASTEXITCODE -eq 0); $ErrorActionPreference = 'Stop'
+if ($exists) { & gh release upload "v$Version" @assets --repo $repo --clobber } else { & gh release create "v$Version" @assets --repo $repo --title "TierS Driver Manage $Version" --notes $(if ($Notes) { $Notes } else { "Version $Version" }) }
 "Published v$Version to $repo"
