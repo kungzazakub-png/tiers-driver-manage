@@ -166,6 +166,7 @@ $ScanBlock = {
         try {
             $bad = Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -in 1, 28 }   # 1 = not configured, 28 = no driver (22 = disabled by the user, ignore)
             $state.Missing = @($bad | ForEach-Object { "$($_.Name) [รหัสปัญหา $($_.ConfigManagerErrorCode)]" })
+            $state.MissingDevices = @(Get-DevicesWithoutDriver $bad)
         } catch {}
 
         $items = @()
@@ -195,7 +196,7 @@ $ScanBlock = {
 
         $state.Status = 'กำลังค้นหาจาก Microsoft Update Catalog ด้วย hardware ID (อาจใช้เวลาประมาณ 1 นาที)...'
         try {
-            $ms = @(Find-MsCatalogUpdates $installed)
+            $ms = @(Find-MsCatalogUpdates (@($state.MissingDevices) + @($installed)))
             $items += @($ms | Where-Object { $vendorDevices -notcontains $_.Raw.Name })   # the maker's own offer wins
             $state.Log += "Microsoft Update Catalog: พบรายการที่ใหม่กว่า $($ms.Count) รายการ`r`n"
             if ($MsCatalogFailures -gt 0) { $state.Log += "คำเตือน: ค้น Microsoft Catalog ไม่สำเร็จ $MsCatalogFailures ครั้ง (ผลอาจไม่ครบ)`r`n" }
@@ -219,6 +220,7 @@ $ScanBlock = {
         } catch {
             $state.Log += "Windows Update: $($_.Exception.Message)`r`n"
         }
+        $state.Unresolved = @(Get-UnresolvedDevices @($state.MissingDevices) $items)
         $state.Items = @($items)
         $state.Status = "สแกนเสร็จ: พบไดรเวอร์ที่ควรอัปเดต $(@($items).Count) รายการ"
     } catch {
@@ -334,7 +336,7 @@ function New-State {
         Status = ''; Done = $false; Error = $null; Items = @(); Inventory = @(); Log = ''; Reboot = $false
         Ids = @(); CatalogItems = @(); RestorePoint = $false; Missing = @(); Installed = 0; BlockCatalog = ($script:FolderWritable -and $script:RequireProtectedFolder)
         CatalogPath = $script:CatalogPath; OnlineCatalogPath = (Join-Path $PSScriptRoot 'driverdb.online.json'); UpdateRepo = $script:UpdateRepo; PublicKey = $script:UpdatePublicKey
-        ItemStatus = [hashtable]::Synchronized(@{}); ItemReason = [hashtable]::Synchronized(@{}); Cancel = $false
+        MissingDevices = @(); Unresolved = @(); ItemStatus = [hashtable]::Synchronized(@{}); ItemReason = [hashtable]::Synchronized(@{}); Cancel = $false
     })
 }
 
@@ -538,6 +540,7 @@ function Invoke-Tick {
         $script:grid.Rows.Clear()
         $script:syncing = $true
         foreach ($it in $items) { $script:ctx.ItemsById[$it.Id] = $it; Add-UpdateRow $it }
+        foreach ($u in @($s.Unresolved)) { Add-InfoRow $u }   # devices with no driver and no automatic match: shown, not installable
         $script:syncing = $false
         $script:invGrid.Rows.Clear()
         foreach ($d in ($s.Inventory | Sort-Object { if ($null -eq $_.Age) { -1 } else { $_.Age } } -Descending)) { Add-InventoryRow $d }
@@ -859,6 +862,16 @@ if ($SelfTest) {
     $rs = Install-AppUpdate $manS $instS (Join-Path $shortRoot 'work') '1.0.0' $zipS
     Check ("update apply: works with a short (8.3) work path [$($shortRoot -ne $tl)]: " + $rs.Message) $rs.Success
     Remove-Item $tl -Recurse -Force -ErrorAction SilentlyContinue
+    # 5g) devices without a driver: searched like installed ones, and listed when nothing is found
+    $ents = @([pscustomobject]@{ PNPDeviceID = 'USB\VID_03F0&PID_5617\X'; Name = 'Unknown USB Printer'; PNPClass = $null; Manufacturer = $null; ConfigManagerErrorCode = 28; HardwareID = @('USB\VID_03F0&PID_5617&REV_0100', 'USB\VID_03F0&PID_5617'); CompatibleID = @('USB\Class_07') },
+              [pscustomobject]@{ PNPDeviceID = 'ACPI\XYZ0001\1'; Name = 'Mystery device'; PNPClass = $null; Manufacturer = $null; ConfigManagerErrorCode = 28; HardwareID = @('ACPI\XYZ0001'); CompatibleID = @() })
+    $noDrv = @(Get-DevicesWithoutDriver $ents)
+    Check 'no-driver: both devices carry their hardware and compatible IDs, without a version' ($noDrv.Count -eq 2 -and $noDrv[0].HardwareId.Count -eq 3 -and $null -eq $noDrv[0].Version)
+    $fakeRows = { param($k) @([pscustomobject]@{ UpdateId = '11111111-1111-1111-1111-111111111111'; Title = 'HP printer driver'; Products = 'Windows 11'; Class = 'Drivers (Printers)'; Date = [datetime]'2026-01-01'; Version = '1.2.3.4'; SizeMB = 5 }) }
+    $offersND = @(Find-MsCatalogUpdates $noDrv ([pscustomobject]@{ Arch = 'x64'; Os = '11' }) 40 { param($k) if ($k -like 'USB*') { & $fakeRows $k } else { @() } })
+    Check 'no-driver: a device with no driver at all is offered the catalog driver' ($offersND.Count -eq 1 -and $offersND[0].Title -match 'ยังไม่มีไดรเวอร์' -and $offersND[0].Raw.Name -eq 'Unknown USB Printer')
+    $unres = @(Get-UnresolvedDevices $noDrv $offersND)
+    Check 'no-driver: only the device nothing matched is reported as unresolved' ($unres.Count -eq 1 -and $unres[0].Name -eq 'Mystery device')
     # 6) full GUI flow in DryRun: scan -> review -> install -> results
     [Windows.Forms.Application]::EnableVisualStyles()
     $script:DryRun = $true
@@ -904,6 +917,14 @@ if ($SelfTest) {
     Invoke-BannerClick 'retry'
     Wait-Idle 20
     Check 'gui: retry reinstalled the failed driver only' ((@($script:ctx.Results | Where-Object { $_.Status -eq 'ok' }).Count -eq 2) -and $script:grid.Rows.Count -eq 2)
+    # info rows (device with no driver and no match): visible, never counted, never ticked
+    $script:grid.Rows.Clear(); $script:gridMode = 'review'; $script:ctx.ItemsById = @{}
+    Add-InfoRow ([pscustomobject]@{ InstanceId = 'ACPI\XYZ0001\1'; Name = 'Mystery device'; Class = ''; HardwareId = @('ACPI\XYZ0001') })
+    Enter-ReviewMode 0
+    Check 'gui: a list with only unresolved devices is shown but offers no install' ($script:grid.Visible -and -not $script:btnInstall.Visible -and -not $script:chkAll.Visible)
+    $itX = [pscustomobject]@{ Id = 'ms:9'; Title = 'Some driver'; Class = 'NET'; Source = 'Microsoft Catalog'; Date = ''; SizeMB = 1 }
+    $script:ctx.ItemsById[$itX.Id] = $itX; Add-UpdateRow $itX; Enter-ReviewMode 0
+    Check 'gui: unresolved rows are not counted in the selection' ($script:lblSel.Text -match '1 จาก 1')
     $f.Close(); $f.Dispose()
     "FAILED CHECKS: $fail"
     exit $fail

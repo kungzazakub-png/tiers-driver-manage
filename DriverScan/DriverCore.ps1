@@ -223,7 +223,7 @@ function Find-MsCatalogUpdates($installed, $hostInfo = (Get-HostInfo), $maxQueri
         $realDates = $best.Date -and $d.Date -and $best.Date.Year -gt 1990 -and ([datetime]$d.Date).Year -gt 1990
         if ($realDates -and $best.Date -lt ([datetime]$d.Date).Date) { continue }
         $found += [pscustomobject]@{
-            Id = "ms:$($best.UpdateId)"; Title = "$($d.Name): $($best.Title) [ตอนนี้ $($d.Version)]"; Class = $d.Class; Maker = $d.Maker
+            Id = "ms:$($best.UpdateId)"; Title = "$($d.Name): $($best.Title) [$(if ($d.Version) { 'ตอนนี้ ' + $d.Version } else { 'ยังไม่มีไดรเวอร์' })]"; Class = $d.Class; Maker = $d.Maker
             Date = $(if ($best.Date) { $best.Date.ToString('yyyy-MM-dd') } else { '' }); SizeMB = $best.SizeMB; Source = 'Microsoft Catalog'
             Raw = [pscustomobject]@{ UpdateId = $best.UpdateId; Key = $key; Name = $d.Name }
         }
@@ -503,4 +503,23 @@ function Read-AllCatalogs($localPath, $onlinePath) {
         foreach ($c in @(Read-DriverCatalog $onlinePath)) { $byName[$c.name] = $c }
     }
     return @($byName.Values)
+}
+
+
+# ---------- devices that have NO driver yet (a newly plugged printer, an unknown device) ----------
+# Win32_PnPSignedDriver only lists devices that already have a driver, so these are read from Win32_PnPEntity (problem codes 1 and 28)
+# and shaped like installed drivers (no Version) so the same Microsoft Catalog search can look for them by hardware/compatible ID.
+function Get-DevicesWithoutDriver($entities = $null) {
+    if ($null -eq $entities) { $entities = Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -in 1, 28 } }
+    foreach ($e in @($entities)) {
+        $ids = @(@($e.HardwareID) + @($e.CompatibleID)) | Where-Object { $_ }
+        [pscustomobject]@{ InstanceId = $e.PNPDeviceID; Name = $(if ($e.Name) { $e.Name } else { 'Unknown device' }); Class = [string]$e.PNPClass; Maker = [string]$e.Manufacturer
+            Version = $null; Date = $null; HardwareId = @($ids); ErrorCode = $e.ConfigManagerErrorCode }
+    }
+}
+
+# Devices without a driver for which no offer was found (the list shows them so the user knows to look manually).
+function Get-UnresolvedDevices($devices, $offers) {
+    $covered = @($offers | Where-Object { $_.Raw -and $_.Raw.Name } | ForEach-Object { $_.Raw.Name })
+    return @($devices | Where-Object { $covered -notcontains $_.Name })
 }

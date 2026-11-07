@@ -197,6 +197,20 @@ function Add-UpdateRow($it) {
     if ($system) { $st = $row.Cells[7].Style; $st.ForeColor = $T.Warn; $st.Font = New-Font 10 $true; $st.SelectionForeColor = $T.Warn }
 }
 
+function Test-InfoRow($row) { return ([string]$row.Tag -like 'info:*') }
+
+# A device without a driver that no source could match: listed so the user knows to look for it by hand. Not tickable, not installable.
+function Add-InfoRow($d) {
+    $T = $script:Theme
+    $hid = (@($d.HardwareId) | Select-Object -First 1)
+    $idx = $script:grid.Rows.Add($false, (New-Icon 'info' $T.Muted), "$($d.Name)", (Get-ClassLabel $d.Class), '—', '', '', 'ไม่พบไดรเวอร์อัตโนมัติ')
+    $row = $script:grid.Rows[$idx]
+    $row.Tag = 'info:' + $d.InstanceId
+    $row.Cells[0].ReadOnly = $true
+    $row.Cells[2].ToolTipText = "$($d.Name)`r`nHardware ID: $hid`r`nไม่พบไดรเวอร์จาก Windows Update หรือ Microsoft Catalog ลองหาจากเว็บผู้ผลิตด้วย Hardware ID นี้"
+    $row.Cells[6].Tag = 0.0
+    $st = $row.Cells[7].Style; $st.ForeColor = $T.Muted; $st.SelectionForeColor = $T.Muted; $st.Font = New-Font 10 $true
+}
 # installed grid columns: 0 icon | 1 device | 2 type | 3 maker | 4 version | 5 date | 6 status
 function Add-InventoryRow($d) {
     $T = $script:Theme
@@ -295,7 +309,7 @@ function Update-BannerLayout {
 # Live chip for the middle fact of the strip: what is still to do, what is being done, or what happened.
 function Set-UpdatesChip {
     $T = $script:Theme; $chip = $script:sumUpdates
-    $total = $script:grid.Rows.Count
+    $total = @($script:grid.Rows | Where-Object { -not (Test-InfoRow $_) }).Count
     if (-not $script:scanned) { $chip.Text = ''; $chip.Image = $null; return }
     switch ($script:gridMode) {
         'review' {
@@ -342,8 +356,9 @@ function Update-SelectionUi {
     $T = $script:Theme
     $review = ($script:gridMode -eq 'review')
     $n = 0; $sum = 0.0
-    if ($review) { foreach ($r in $script:grid.Rows) { if ($r.Cells[0].Value -eq $true) { $n++; $sum += [double]$r.Cells[6].Tag } } }
-    $total = $script:grid.Rows.Count
+    if ($review) { foreach ($r in $script:grid.Rows) { if ($r.Cells[0].Value -eq $true -and -not (Test-InfoRow $r)) { $n++; $sum += [double]$r.Cells[6].Tag } } }
+    $rowCount = $script:grid.Rows.Count
+    $total = @($script:grid.Rows | Where-Object { -not (Test-InfoRow $_) }).Count   # tickable rows only
     $canAct = $review -and (-not $script:isBusy)
     $script:btnInstall.Text = $(if ($n -gt 0) { "ติดตั้ง $n รายการ" } else { 'ติดตั้ง' })
     $script:btnInstall.Visible = $canAct -and ($total -gt 0)
@@ -355,8 +370,8 @@ function Update-SelectionUi {
     $script:syncing = $true
     $script:chkAll.Checked = ($total -gt 0 -and $n -eq $total)
     $script:syncing = $false
-    $script:grid.Visible = ($total -gt 0)
-    $script:lblEmpty.Visible = ($total -eq 0)
+    $script:grid.Visible = ($rowCount -gt 0)
+    $script:lblEmpty.Visible = ($rowCount -eq 0)
     if ($script:isBusy) { $script:lblEmpty.Text = "กำลังสแกนเครื่อง...`r`nอาจใช้เวลาประมาณ 1-2 นาที"; $script:lblEmpty.ForeColor = $T.Muted }
     elseif ($script:scanned) { $script:lblEmpty.Text = "ไดรเวอร์เป็นปัจจุบันแล้ว`r`nไม่พบไดรเวอร์ที่ใหม่กว่าจากแหล่งที่ตรวจ"; $script:lblEmpty.ForeColor = $T.Good }
     else { $script:lblEmpty.Text = "สแกน   ›   ตรวจรายการ   ›   ติดตั้ง`r`n`r`nกด [สแกนไดรเวอร์] โปรแกรมจะหาไดรเวอร์ที่ใหม่กว่าให้ คุณตรวจรายการก่อน แล้วค่อยกดติดตั้ง`r`nใช้เวลาสแกนประมาณ 1-2 นาที ต้องต่ออินเทอร์เน็ตไว้"; $script:lblEmpty.ForeColor = $T.Muted }
@@ -379,8 +394,8 @@ function Enter-ReviewMode([int]$priorInstalled = 0) {
     $script:gridMode = 'review'
     $script:grid.Columns[0].Visible = $true
     $script:grid.Columns[7].HeaderText = 'หมายเหตุ'
-    $n = $script:grid.Rows.Count
-    $sys = 0; foreach ($r in $script:grid.Rows) { if ($r.Cells[0].Value -ne $true) { $sys++ } }
+    $n = @($script:grid.Rows | Where-Object { -not (Test-InfoRow $_) }).Count
+    $sys = 0; foreach ($r in $script:grid.Rows) { if ($r.Cells[0].Value -ne $true -and -not (Test-InfoRow $r)) { $sys++ } }
     if ($priorInstalled -gt 0 -and $n -gt 0) { Set-Banner 'info' "ติดตั้งแล้ว $priorInstalled รายการ · พบอีก $n รายการจากฮาร์ดแวร์ที่เพิ่งถูกตรวจพบ ตรวจรายการแล้วกดติดตั้งอีกครั้ง" @() }
     elseif ($sys -gt 0) { Set-Banner 'warn' 'ไดรเวอร์ชิปเซ็ตและระบบไม่ได้ติ๊กไว้ให้ เพราะกระทบทั้งเครื่อง และส่วนใหญ่ไม่จำเป็นต้องอัปเดต ติ๊กเองถ้าต้องการ' @() }
     else { Set-Banner 'hidden' '' }
@@ -604,16 +619,16 @@ function New-MainForm {
     $script:chkAll.Add_CheckedChanged({
         if ($script:syncing) { return }
         $script:syncing = $true
-        foreach ($row in $script:grid.Rows) { $row.Cells[0].Value = $script:chkAll.Checked }
+        foreach ($row in $script:grid.Rows) { if (-not (Test-InfoRow $row)) { $row.Cells[0].Value = $script:chkAll.Checked } }
         $script:syncing = $false
         Update-SelectionUi
     })
     $script:grid.Add_CurrentCellDirtyStateChanged({ if ($script:grid.IsCurrentCellDirty) { $script:grid.CommitEdit('CurrentCellChange') } })
     $script:grid.Add_CellValueChanged({ if (-not $script:syncing) { Update-SelectionUi } })
-    $script:grid.Add_CellClick({ param($s, $e) if ($script:gridMode -eq 'review' -and $e.RowIndex -ge 0 -and $e.ColumnIndex -gt 1) { $c = $script:grid.Rows[$e.RowIndex].Cells[0]; $c.Value = -not ($c.Value -eq $true) } })
+    $script:grid.Add_CellClick({ param($s, $e) if ($script:gridMode -eq 'review' -and $e.RowIndex -ge 0 -and $e.ColumnIndex -gt 1 -and -not (Test-InfoRow $script:grid.Rows[$e.RowIndex])) { $c = $script:grid.Rows[$e.RowIndex].Cells[0]; $c.Value = -not ($c.Value -eq $true) } })
     # Space ticks the current row from any column (the tick column handles Space itself)
     $script:grid.Add_KeyDown({ param($s, $e)
-        if ($e.KeyCode -eq 'Space' -and $script:gridMode -eq 'review' -and $s.CurrentCell -and $s.CurrentCell.ColumnIndex -gt 1) {
+        if ($e.KeyCode -eq 'Space' -and $script:gridMode -eq 'review' -and $s.CurrentCell -and $s.CurrentCell.ColumnIndex -gt 1 -and -not (Test-InfoRow $s.CurrentRow)) {
             $c = $s.CurrentRow.Cells[0]; $c.Value = -not ($c.Value -eq $true); $e.Handled = $true; $e.SuppressKeyPress = $true
         }
     })
