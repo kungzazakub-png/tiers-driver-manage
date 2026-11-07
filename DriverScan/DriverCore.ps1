@@ -83,18 +83,18 @@ $MirrorPrefixes = @('https://github.com/kungzazakub-png/tiers-driver-manage/rele
 
 function Assert-AllowedUrl($url, $hosts = $BuiltInHosts) {
     $u = [uri]$url
-    if ($u.Scheme -ne 'https') { throw "ไม่อนุญาตลิงก์ที่ไม่ใช่ https: $url" }
+    if ($u.Scheme -ne 'https') { throw "Links that are not https are not allowed: $url" }
     if ([object]::ReferenceEquals($hosts, $BuiltInHosts)) { foreach ($pre in $MirrorPrefixes) { if ($url.StartsWith($pre, [StringComparison]::OrdinalIgnoreCase)) { return } } }
     $ok = $false
     foreach ($h in @($hosts | Where-Object { $_ })) { if ($u.Host -eq $h -or $u.Host.EndsWith('.' + $h)) { $ok = $true } }
-    if (-not $ok) { throw "โฮสต์ $($u.Host) ไม่อยู่ในรายการที่อนุญาตของโปรแกรม" }
+    if (-not $ok) { throw "Host $($u.Host) is not in the program's allowed list" }
 }
 
 function Test-FileSha256($path, $expected) {
-    if (-not $expected) { throw 'รายการในแค็ตตาล็อกไม่มีค่า sha256 จึงไม่ติดตั้ง' }
+    if (-not $expected) { throw 'The catalog entry has no sha256 value, so it will not be installed' }
     $actual = (Get-FileHash -Path $path -Algorithm SHA256).Hash
     if ($actual -ne ([string]$expected).ToUpperInvariant()) {
-        throw "ค่า SHA-256 ไม่ตรง (ได้ $actual) ไฟล์อาจถูกแก้ไขหรือเสียหาย"
+        throw "SHA-256 mismatch (got $actual); the file may have been modified or corrupted"
     }
     return $true
 }
@@ -107,7 +107,7 @@ function Expand-SafeZip($zip, $dest) {
     try {
         foreach ($e in $z.Entries) {
             $target = [IO.Path]::GetFullPath((Join-Path $dest $e.FullName))
-            if (-not $target.StartsWith($destFull, [StringComparison]::OrdinalIgnoreCase)) { throw "พบพาธที่ไม่ปลอดภัยในไฟล์ zip: $($e.FullName)" }
+            if (-not $target.StartsWith($destFull, [StringComparison]::OrdinalIgnoreCase)) { throw "Unsafe path found in zip file: $($e.FullName)" }
         }
     } finally { $z.Dispose() }
     Expand-Archive -Path $zip -DestinationPath $dest -Force
@@ -137,17 +137,17 @@ function Install-CatalogItem($c, $workDir, $localFile = $null) {
             $res.Success = ($code -eq 0 -or $code -eq 3010)
             $res.Reboot = ($code -eq 3010) -or ($out -match 'reboot|restart')
         } elseif ($c.type -eq 'installer') {
-            if (-not $c.signer) { throw 'รายการ installer ต้องระบุ signer (ชื่อผู้เซ็น) จึงจะติดตั้ง' }
-            if (-not $c.silentArgs) { throw 'รายการ installer ต้องระบุ silentArgs' }
+            if (-not $c.signer) { throw 'An installer entry must specify a signer (publisher name) to be installed' }
+            if (-not $c.silentArgs) { throw 'An installer entry must specify silentArgs' }
             $sig = Get-AuthenticodeSignature -FilePath $file
-            if ($sig.Status -ne 'Valid') { throw "ลายเซ็นดิจิทัลของตัวติดตั้งไม่ถูกต้อง ($($sig.Status))" }
-            if ($sig.SignerCertificate.Subject -notlike "*$($c.signer)*") { throw "ผู้เซ็นไม่ตรงกับที่ระบุ: $($sig.SignerCertificate.Subject)" }
+            if ($sig.Status -ne 'Valid') { throw "The installer's digital signature is not valid ($($sig.Status))" }
+            if ($sig.SignerCertificate.Subject -notlike "*$($c.signer)*") { throw "Signer does not match the expected publisher: $($sig.SignerCertificate.Subject)" }
             $p = Start-Process -FilePath $file -ArgumentList $c.silentArgs -Wait -PassThru
             $res.Success = ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010)
             $res.Reboot = ($p.ExitCode -eq 3010)
             $res.Message = "exit code $($p.ExitCode)"
         } else {
-            throw "ไม่รู้จัก type: $($c.type) (ใช้ inf-zip หรือ installer)"
+            throw "Unknown type: $($c.type) (use inf-zip or installer)"
         }
     } catch {
         $res.Message = $_.Exception.Message
@@ -188,7 +188,7 @@ function Search-MsCatalog($key) {
 # Rows, or an empty list for a genuine "no results" page. Any other page means Microsoft changed it (or blocked us): fail loudly.
 function Get-MsCatalogRows($html) {
     $rows = @(ConvertFrom-MsCatalogHtml $html)
-    if ($rows.Count -eq 0 -and $html -notmatch 'did not find any results') { throw 'ไม่รู้จักรูปแบบหน้าค้นหาของ Microsoft Update Catalog (หน้าเว็บอาจเปลี่ยน หรือถูกบล็อก)' }
+    if ($rows.Count -eq 0 -and $html -notmatch 'did not find any results') { throw 'Unrecognised Microsoft Update Catalog search page format (the page may have changed or is blocked)' }
     return $rows
 }
 
@@ -223,13 +223,13 @@ function Find-MsCatalogUpdates($installed, $hostInfo = (Get-HostInfo), $maxQueri
         $realDates = $best.Date -and $d.Date -and $best.Date.Year -gt 1990 -and ([datetime]$d.Date).Year -gt 1990
         if ($realDates -and $best.Date -lt ([datetime]$d.Date).Date) { continue }
         $found += [pscustomobject]@{
-            Id = "ms:$($best.UpdateId)"; Title = "$($d.Name): $($best.Title) [$(if ($d.Version) { 'ตอนนี้ ' + $d.Version } else { 'ยังไม่มีไดรเวอร์' })]"; Class = $d.Class; Maker = $d.Maker
+            Id = "ms:$($best.UpdateId)"; Title = "$($d.Name): $($best.Title) [$(if ($d.Version) { 'now ' + $d.Version } else { 'no driver yet' })]"; Class = $d.Class; Maker = $d.Maker
             Date = $(if ($best.Date) { $best.Date.ToString('yyyy-MM-dd') } else { '' }); SizeMB = $best.SizeMB; Source = 'Microsoft Catalog'
             Raw = [pscustomobject]@{ UpdateId = $best.UpdateId; Key = $key; Name = $d.Name }
         }
     }
     $script:MsCatalogFailures = $failed
-    if ($n -gt 0 -and $failed -eq $n) { throw "ค้นจาก Microsoft Catalog ไม่สำเร็จเลย ($failed ครั้ง): $firstErr" }
+    if ($n -gt 0 -and $failed -eq $n) { throw "Every Microsoft Catalog query failed ($failed attempts): $firstErr" }
     return @($found | Group-Object { $_.Raw.UpdateId } | ForEach-Object { $_.Group[0] })
 }
 
@@ -245,7 +245,7 @@ function Install-MsCatalogItem($item, $workDir, $download = $null, $localFile = 
     $res = [pscustomobject]@{ Success = $false; Reboot = $false; Message = '' }
     try {
         $files = if ($download) { @($download) } else { @(Get-MsCatalogDownload $item.Raw.UpdateId) }
-        if ($files.Count -eq 0) { throw 'ไม่พบลิงก์ดาวน์โหลดจากแค็ตตาล็อกของ Microsoft' }
+        if ($files.Count -eq 0) { throw 'No download link found in the Microsoft catalog' }
         New-Item -ItemType Directory -Force $workDir | Out-Null
         $isAdmin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         if ($isAdmin) { & icacls.exe $workDir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' | Out-Null }
@@ -258,13 +258,13 @@ function Install-MsCatalogItem($item, $workDir, $download = $null, $localFile = 
             if ($localFile) { Copy-Item $localFile $cab -Force } else { Invoke-WebRequest -Uri $f.Url -OutFile $cab -UseBasicParsing -TimeoutSec 600 }
             $fs = [IO.File]::OpenRead($cab)
             try { $got = [Convert]::ToBase64String([Security.Cryptography.SHA1]::Create().ComputeHash($fs)) } finally { $fs.Dispose() }
-            if ($got -cne $f.Digest) { throw 'ค่า SHA-1 ของไฟล์ไม่ตรงกับที่แค็ตตาล็อกของ Microsoft แจ้ง' }
+            if ($got -cne $f.Digest) { throw 'File SHA-1 does not match the value reported by the Microsoft catalog' }
             & expand.exe $cab '-F:*' $pkg | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw 'แตกไฟล์ cab ไม่สำเร็จ' }
+            if ($LASTEXITCODE -ne 0) { throw 'Failed to extract the cab file' }
         }
         # Never install a package that does not mention this device's hardware ID.
         $mentions = Get-ChildItem $pkg -Recurse -Filter *.inf | Select-String -Pattern ([regex]::Escape($item.Raw.Key)) -Quiet
-        if (-not $mentions) { throw "แพ็กเกจนี้ไม่มีฮาร์ดแวร์ $($item.Raw.Key) จึงไม่ติดตั้ง" }
+        if (-not $mentions) { throw "This package does not contain hardware $($item.Raw.Key), so it will not be installed" }
         $out = & pnputil.exe /add-driver (Join-Path $pkg '*.inf') /subdirs /install 2>&1 | Out-String
         $code = $LASTEXITCODE
         $res.Message = $out.Trim()
@@ -327,7 +327,7 @@ function Find-NvidiaUpdates($installed, $hostInfo = (Get-HostInfo), $get = { par
         if ($sz.Success) { $mb = [math]::Round([double]$sz.Groups[1].Value * $(if ($sz.Groups[2].Value -eq 'GB') { 1024 } else { 1 }), 1) }
         $date = ''; try { $date = ([datetime]::ParseExact(([string]$info.ReleaseDateTime), 'ddd MMM dd, yyyy', [Globalization.CultureInfo]::InvariantCulture)).ToString('yyyy-MM-dd') } catch {}
         $found += [pscustomobject]@{
-            Id = "ven:nvidia:$($info.Version)"; Title = "NVIDIA GeForce Game Ready Driver $($info.Version) [ตอนนี้ $($cur.ToString('0.00'))]"; Class = 'DISPLAY'; Maker = 'NVIDIA'
+            Id = "ven:nvidia:$($info.Version)"; Title = "NVIDIA GeForce Game Ready Driver $($info.Version) [now $($cur.ToString('0.00'))]"; Class = 'DISPLAY'; Maker = 'NVIDIA'
             Date = $date; SizeMB = $mb; Source = 'NVIDIA'
             Raw = [pscustomobject]@{ Url = [string]$info.DownloadURL; Version = [string]$info.Version; Signer = 'NVIDIA Corporation'; SilentArgs = '-s -noreboot -noeula'; InstanceId = $d.InstanceId; DeviceName = $d.Name }
         }
@@ -347,8 +347,8 @@ function Install-VendorItem($item, $workDir, $localFile = $null) {
         $file = Join-Path $workDir ([IO.Path]::GetFileName(([uri]$r.Url).AbsolutePath))
         if ($localFile) { Copy-Item $localFile $file -Force } else { Invoke-WebRequest -Uri $r.Url -OutFile $file -UseBasicParsing -TimeoutSec 3600 }
         $sig = Get-AuthenticodeSignature -FilePath $file
-        if ($sig.Status -ne 'Valid') { throw "ลายเซ็นดิจิทัลของตัวติดตั้งไม่ถูกต้อง ($($sig.Status)) จึงไม่ติดตั้ง" }
-        if ($sig.SignerCertificate.Subject -notlike "*$($r.Signer)*") { throw "ผู้เซ็นไม่ตรงกับ $($r.Signer): $($sig.SignerCertificate.Subject)" }
+        if ($sig.Status -ne 'Valid') { throw "The installer's digital signature is not valid ($($sig.Status)), so it will not be installed" }
+        if ($sig.SignerCertificate.Subject -notlike "*$($r.Signer)*") { throw "Signer does not match $($r.Signer): $($sig.SignerCertificate.Subject)" }
         $p = Start-Process -FilePath $file -ArgumentList $r.SilentArgs -Wait -PassThru
         $res.Message = "exit code $($p.ExitCode)"
         $res.Success = ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010)
@@ -397,10 +397,10 @@ function Get-AppUpdate($repo, $currentVersion, $publicKeyXml, $get = $null) {
     if (-not $publicKeyXml -or $repo -notmatch '^[\w\.\-]+/[\w\.\-]+$') { return $null }
     $m = (& $get "https://github.com/$repo/releases/latest/download/latest.json") | ConvertFrom-Json
     $newV = ConvertTo-Ver $m.version; $curV = ConvertTo-Ver $currentVersion
-    if (-not $newV) { throw 'รูปแบบเวอร์ชันในไฟล์อัปเดตไม่ถูกต้อง' }
+    if (-not $newV) { throw 'The version format in the update file is not valid' }
     if ($curV -and $newV -le $curV) { return $null }
-    if (-not (Test-UpdateSignature $m $publicKeyXml)) { throw 'ลายเซ็นของไฟล์อัปเดตไม่ถูกต้อง จึงไม่อัปเดต (ไฟล์อาจถูกแก้ไข)' }
-    if ([string]$m.sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'ค่า sha256 ในไฟล์อัปเดตไม่ถูกต้อง' }
+    if (-not (Test-UpdateSignature $m $publicKeyXml)) { throw 'The update file signature is not valid, so it will not be applied (the file may have been tampered with)' }
+    if ([string]$m.sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'The sha256 value in the update file is not valid' }
     Assert-AllowedUrl $m.url $UpdateHosts
     return $m
 }
@@ -422,15 +422,15 @@ function Install-AppUpdate($m, $installDir, $workDir, $oldVersion, $localZip = $
         Expand-SafeZip $zip $new
         # (compare by listing, not by path text: %TEMP% can be an 8.3 short path while the listing returns long names)
         $sub = @(Get-ChildItem $new -Directory)
-        if ($sub.Count -gt 0) { throw "ไฟล์อัปเดตมีโฟลเดอร์ย่อย: $($sub[0].Name)" }
+        if ($sub.Count -gt 0) { throw "The update contains a subfolder: $($sub[0].Name)" }
         $files = @(Get-ChildItem $new -File)
         foreach ($f in $files) {
-            if ($UpdateAllowedExt -notcontains $f.Extension.ToLowerInvariant()) { throw "ไฟล์อัปเดตมีไฟล์ชนิดที่ไม่อนุญาต: $($f.Name)" }
+            if ($UpdateAllowedExt -notcontains $f.Extension.ToLowerInvariant()) { throw "The update contains a file type that is not allowed: $($f.Name)" }
         }
-        foreach ($must in 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1') { if (-not (Test-Path (Join-Path $new $must))) { throw "ไฟล์อัปเดตไม่มี $must" } }
+        foreach ($must in 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1') { if (-not (Test-Path (Join-Path $new $must))) { throw "The update is missing $must" } }
         foreach ($f in @($files | Where-Object { $_.Extension -eq '.ps1' })) {
             $err = $null; [void][Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$err)
-            if ($err.Count -gt 0) { throw "สคริปต์ $($f.Name) ในไฟล์อัปเดตมีข้อผิดพลาดทางไวยากรณ์ จึงไม่อัปเดต" }
+            if ($err.Count -gt 0) { throw "Script $($f.Name) in the update has a syntax error, so it will not be applied" }
         }
         $backup = Join-Path $installDir ('_backup\' + $oldVersion)
         New-Item -ItemType Directory -Force $backup | Out-Null
@@ -441,7 +441,7 @@ function Install-AppUpdate($m, $installDir, $workDir, $oldVersion, $localZip = $
             $touched += $f.Name
             Copy-Item $f.FullName $dst -Force
         }
-        $res.Success = $true; $res.Message = "อัปเดตเป็นเวอร์ชัน $($m.version) แล้ว ($($touched.Count) ไฟล์)"
+        $res.Success = $true; $res.Message = "Updated to version $($m.version) ($($touched.Count) files)"
     } catch {
         $res.Message = $_.Exception.Message
         foreach ($n in $touched) { $b = if ($backup) { Join-Path $backup $n } else { $null }; if ($b -and (Test-Path $b)) { Copy-Item $b (Join-Path $installDir $n) -Force } }
@@ -454,13 +454,13 @@ function Install-AppUpdate($m, $installDir, $workDir, $oldVersion, $localZip = $
 # Same trust model as program updates: a manifest signed with the publisher's private key covers revision + file hash + url.
 # An online catalog can add drivers but can never widen the download-host list (that stays hard-coded above).
 function Test-CatalogEntry($c) {
-    if (-not $c.name) { return 'ไม่มีชื่อ' }
-    if (-not (ConvertTo-Ver $c.version)) { return "เวอร์ชันไม่ถูกต้อง ($($c.version))" }
-    if (-not @($c.match).Count -or -not (@($c.match) | Where-Object { $_ }).Count) { return 'ไม่มี match' }
-    if ($c.type -notin 'installer', 'inf-zip') { return "type ไม่รู้จัก ($($c.type))" }
-    if ([string]$c.sha256 -notmatch '^[0-9a-fA-F]{64}$') { return 'sha256 ไม่ถูกต้อง' }
+    if (-not $c.name) { return 'no name' }
+    if (-not (ConvertTo-Ver $c.version)) { return "invalid version ($($c.version))" }
+    if (-not @($c.match).Count -or -not (@($c.match) | Where-Object { $_ }).Count) { return 'no match' }
+    if ($c.type -notin 'installer', 'inf-zip') { return "unknown type ($($c.type))" }
+    if ([string]$c.sha256 -notmatch '^[0-9a-fA-F]{64}$') { return 'invalid sha256' }
     try { Assert-AllowedUrl $c.url } catch { return $_.Exception.Message }
-    if ($c.type -eq 'installer' -and (-not $c.signer -or -not $c.silentArgs)) { return 'installer ต้องมี signer และ silentArgs' }
+    if ($c.type -eq 'installer' -and (-not $c.signer -or -not $c.silentArgs)) { return 'installer needs signer and silentArgs' }
     return $null
 }
 
@@ -480,14 +480,14 @@ function Get-OnlineCatalog($repo, $publicKeyXml, $cachePath, $fetch = $null) {
     $curRev = 0
     if (Test-Path $cachePath) { try { $curRev = [int]((Get-Content $cachePath -Raw -Encoding UTF8 | ConvertFrom-Json).revision) } catch {} }
     if ($rev -le $curRev) { return [pscustomobject]@{ Updated = $false; Revision = $curRev; Count = 0 } }
-    if (-not (Test-UpdateSignature $m $publicKeyXml)) { throw 'ลายเซ็นของแค็ตตาล็อกออนไลน์ไม่ถูกต้อง จึงไม่ใช้ (ไฟล์อาจถูกแก้ไข)' }
+    if (-not (Test-UpdateSignature $m $publicKeyXml)) { throw 'The online catalog signature is not valid, so it will not be used (the file may have been tampered with)' }
     Assert-AllowedUrl $m.url $UpdateHosts
     $bytes = & $fetch $m.url
     $got = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-', '')
-    if ($got -ne ([string]$m.sha256).ToUpperInvariant()) { throw 'ค่า SHA-256 ของแค็ตตาล็อกออนไลน์ไม่ตรง จึงไม่ใช้' }
+    if ($got -ne ([string]$m.sha256).ToUpperInvariant()) { throw 'The online catalog SHA-256 does not match, so it will not be used' }
     $doc = [Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF) | ConvertFrom-Json
     $entries = @(@($doc.drivers) | Where-Object { $_.name })
-    foreach ($e in $entries) { $why = Test-CatalogEntry $e; if ($why) { throw "รายการ '$($e.name)' ในแค็ตตาล็อกออนไลน์ไม่ผ่านการตรวจ: $why" } }
+    foreach ($e in $entries) { $why = Test-CatalogEntry $e; if ($why) { throw "Entry '$($e.name)' in the online catalog failed validation: $why" } }
     $copy = [pscustomobject]@{ revision = $rev; drivers = $entries }
     $tmpOut = $cachePath + '.new'
     [IO.File]::WriteAllText($tmpOut, ($copy | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding($true)))

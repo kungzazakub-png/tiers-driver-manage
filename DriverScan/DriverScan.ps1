@@ -37,7 +37,7 @@ function Test-Admin {
 function Show-Fatal($msg) { [void][Windows.Forms.MessageBox]::Show($msg, 'TierS Driver Manage', 'OK', 'Error') }
 
 # The console window is hidden, so any unexpected error must be shown in a box instead of vanishing.
-trap { if ($SelfTest) { throw }; Show-Fatal ('เกิดข้อผิดพลาด: ' + $_.Exception.Message); exit 1 }
+trap { if ($SelfTest) { throw }; Show-Fatal ('An error occurred: ' + $_.Exception.Message); exit 1 }
 
 if (-not $SelfTest -and -not (Test-Admin)) {
     Write-SetupLog 'not admin: asking for administrator rights'
@@ -53,7 +53,7 @@ function Install-Self {
     $here = (Resolve-Path $PSScriptRoot).Path.TrimEnd('\')
     $dest = [IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
     if ($here -ieq $dest -or (Test-Path (Join-Path $here 'unins000.exe'))) { return $false }   # already installed (by Setup, possibly in a folder the user chose)
-    foreach ($f in 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1') { if (-not (Test-Path (Join-Path $here $f))) { throw "ไม่พบไฟล์ $f ข้างโปรแกรม จึงติดตั้งไม่ได้" } }
+    foreach ($f in 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1') { if (-not (Test-Path (Join-Path $here $f))) { throw "File $f was not found next to the program, so it cannot be installed" } }
     New-Item -ItemType Directory -Force $dest | Out-Null
     foreach ($f in 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1', 'New-CatalogEntry.ps1', 'DriverScan.cmd', 'driverdb.example.json', 'README.txt', 'TierS.ico', 'tiers-logo.png', 'TierS.vbs', 'TierS Driver Manage.exe') {
         $s = Join-Path $here $f
@@ -85,7 +85,7 @@ function Install-Self {
 }
 
 if ($Uninstall) {
-    if ([Windows.Forms.MessageBox]::Show('ถอนการติดตั้ง TierS Driver Manage ออกจากเครื่องนี้?', 'TierS Driver Manage', 'YesNo', 'Question') -ne 'Yes') { exit 0 }
+    if ([Windows.Forms.MessageBox]::Show('Uninstall TierS Driver Manage from this computer?', 'TierS Driver Manage', 'YesNo', 'Question') -ne 'Yes') { exit 0 }
     $dest = [IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
     foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) { Remove-Item (Join-Path $dir 'TierS Driver Manage.lnk') -Force -ErrorAction SilentlyContinue }
     Remove-Item 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\TierSDriverManage' -Recurse -Force -ErrorAction SilentlyContinue
@@ -141,19 +141,19 @@ $Core = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'DriverCore.ps1'), [Text
 $ScanBlock = {
     param($state)
     try {
-        $state.Status = 'กำลังตรวจการเชื่อมต่ออินเทอร์เน็ต...'
+        $state.Status = 'Checking internet connection...'
         $online = $false
         try {
             $r0 = Invoke-WebRequest -Uri 'http://www.msftconnecttest.com/connecttest.txt' -UseBasicParsing -TimeoutSec 6
             $online = ($r0.StatusCode -eq 200)
         } catch {}
         if (-not $online) {
-            $state.Error = 'ไม่พบการเชื่อมต่ออินเทอร์เน็ต โปรแกรมนี้ต้องต่ออินเทอร์เน็ตก่อนจึงจะสแกนและติดตั้งไดรเวอร์ได้ กรุณาต่อเน็ตแล้วกดอีกครั้ง'
+            $state.Error = 'No internet connection found. This program needs the internet to scan and install drivers. Please connect and try again.'
             $state.Done = $true
             return
         }
 
-        $state.Status = 'กำลังสแกนฮาร์ดแวร์และไดรเวอร์ที่ติดตั้งอยู่...'
+        $state.Status = 'Scanning hardware and installed drivers...'
         $installed = @(Get-InstalledDrivers)
         $inv = @()
         foreach ($d in $installed) {
@@ -165,46 +165,46 @@ $ScanBlock = {
 
         try {
             $bad = Get-CimInstance Win32_PnPEntity | Where-Object { $_.ConfigManagerErrorCode -in 1, 28 }   # 1 = not configured, 28 = no driver (22 = disabled by the user, ignore)
-            $state.Missing = @($bad | ForEach-Object { "$($_.Name) [รหัสปัญหา $($_.ConfigManagerErrorCode)]" })
+            $state.Missing = @($bad | ForEach-Object { "$($_.Name) [problem code $($_.ConfigManagerErrorCode)]" })
             $state.MissingDevices = @(Get-DevicesWithoutDriver $bad)
         } catch {}
 
         $items = @()
-        $state.Status = 'กำลังตรวจแค็ตตาล็อกไดรเวอร์ออนไลน์และเทียบกับเครื่องนี้...'
+        $state.Status = 'Checking the online driver catalog and comparing with this PC...'
         try {
             try {
                 $oc = Get-OnlineCatalog $state.UpdateRepo $state.PublicKey $state.OnlineCatalogPath
-                if ($oc -and $oc.Updated) { $state.Log += "แค็ตตาล็อกออนไลน์: อัปเดตเป็นรุ่นที่ $($oc.Revision) ($($oc.Count) รายการ)`r`n" }
-            } catch { $state.Log += "แค็ตตาล็อกออนไลน์: $($_.Exception.Message) (ใช้รุ่นที่เก็บไว้เดิม)`r`n" }
+                if ($oc -and $oc.Updated) { $state.Log += "Online catalog: updated to revision $($oc.Revision) ($($oc.Count) entries)`r`n" }
+            } catch { $state.Log += "Online catalog: $($_.Exception.Message) (using the stored copy)`r`n" }
             $cat = @(Read-AllCatalogs $state.CatalogPath $state.OnlineCatalogPath)
             $items += @(Find-CatalogUpdates $installed $cat)
-            $state.Log += "แค็ตตาล็อก: $($cat.Count) รายการ, ตรงกับเครื่องนี้และใหม่กว่า $(@($items).Count) รายการ`r`n"
+            $state.Log += "Catalog: $($cat.Count) entries, $(@($items).Count) newer entries match this PC`r`n"
         } catch {
-            $state.Log += "อ่านแค็ตตาล็อกไม่ได้: $($_.Exception.Message)`r`n"
+            $state.Log += "Could not read the catalog: $($_.Exception.Message)`r`n"
         }
 
-        $state.Status = 'กำลังตรวจเวอร์ชันล่าสุดจากเว็บผู้ผลิต (NVIDIA)...'
+        $state.Status = 'Checking the latest version from the manufacturer (NVIDIA)...'
         $vendorDevices = @()
         try {
             $nv = @(Find-NvidiaUpdates $installed)
             $items += $nv; $vendorDevices += @($nv | ForEach-Object { $_.Raw.DeviceName })
             if ($nv.Count -gt 0) { $items = @($items | Where-Object { -not ($_.Source -eq 'Catalog' -and $_.Class -eq 'DISPLAY' -and $_.Maker -like 'NVIDIA*') }) }   # the maker's own offer replaces the static catalog one
-            $state.Log += "NVIDIA (เว็บผู้ผลิตโดยตรง): พบรายการที่ใหม่กว่า $($nv.Count) รายการ`r`n"
+            $state.Log += "NVIDIA (direct from manufacturer): $($nv.Count) newer entries found`r`n"
         } catch {
-            $state.Log += "NVIDIA (เว็บผู้ผลิต): $($_.Exception.Message)`r`n"
+            $state.Log += "NVIDIA (manufacturer): $($_.Exception.Message)`r`n"
         }
 
-        $state.Status = 'กำลังค้นหาจาก Microsoft Update Catalog ด้วย hardware ID (อาจใช้เวลาประมาณ 1 นาที)...'
+        $state.Status = 'Searching Microsoft Update Catalog by hardware ID (may take about 1 minute)...'
         try {
             $ms = @(Find-MsCatalogUpdates (@($state.MissingDevices) + @($installed)))
             $items += @($ms | Where-Object { $vendorDevices -notcontains $_.Raw.Name })   # the maker's own offer wins
-            $state.Log += "Microsoft Update Catalog: พบรายการที่ใหม่กว่า $($ms.Count) รายการ`r`n"
-            if ($MsCatalogFailures -gt 0) { $state.Log += "คำเตือน: ค้น Microsoft Catalog ไม่สำเร็จ $MsCatalogFailures ครั้ง (ผลอาจไม่ครบ)`r`n" }
+            $state.Log += "Microsoft Update Catalog: $($ms.Count) newer entries found`r`n"
+            if ($MsCatalogFailures -gt 0) { $state.Log += "Warning: $MsCatalogFailures Microsoft Catalog queries failed (results may be incomplete)`r`n" }
         } catch {
             $state.Log += "Microsoft Update Catalog: $($_.Exception.Message)`r`n"
         }
 
-        $state.Status = 'กำลังค้นหาไดรเวอร์จาก Windows Update (อาจใช้เวลา 1-2 นาที)...'
+        $state.Status = 'Searching Windows Update for drivers (may take 1-2 minutes)...'
         try {
             $session = New-Object -ComObject Microsoft.Update.Session
             $searcher = $session.CreateUpdateSearcher()
@@ -222,7 +222,7 @@ $ScanBlock = {
         }
         $state.Unresolved = @(Get-UnresolvedDevices @($state.MissingDevices) $items)
         $state.Items = @($items)
-        $state.Status = "สแกนเสร็จ: พบไดรเวอร์ที่ควรอัปเดต $(@($items).Count) รายการ"
+        $state.Status = "Scan complete: $(@($items).Count) driver updates found"
     } catch {
         $state.Error = $_.Exception.Message
     }
@@ -233,19 +233,19 @@ $InstallBlock = {
     param($state)
     try {
         if ($state.RestorePoint) {
-            $state.Status = 'กำลังสร้างจุดคืนค่าระบบ...'
+            $state.Status = 'Creating a system restore point...'
             try {
                 Checkpoint-Computer -Description 'TierS Driver Manage' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop -WarningVariable rpWarn
-                if ($rpWarn) { $state.Log += "ไม่ได้สร้างจุดคืนค่าระบบ: $rpWarn`r`n" } else { $state.Log += "สร้างจุดคืนค่าระบบแล้ว`r`n" }
+                if ($rpWarn) { $state.Log += "Restore point not created: $rpWarn`r`n" } else { $state.Log += "Restore point created`r`n" }
             } catch {
-                $state.Log += "ข้ามจุดคืนค่าระบบ: $($_.Exception.Message)`r`n"
+                $state.Log += "Restore point skipped: $($_.Exception.Message)`r`n"
             }
         }
         $ok = 0
         foreach ($id in @($state.Ids)) { $state.ItemStatus[$id] = 'wait' }
         $wuIds = @($state.Ids | Where-Object { $_ -notlike 'cat:*' -and $_ -notlike 'ms:*' -and $_ -notlike 'ven:*' })
         if ($wuIds.Count -gt 0 -and $state.Cancel) {
-            foreach ($id in $wuIds) { $state.ItemStatus[$id] = 'skip'; $state.ItemReason[$id] = 'หยุดตามคำขอ' }
+            foreach ($id in $wuIds) { $state.ItemStatus[$id] = 'skip'; $state.ItemReason[$id] = 'Stopped by request' }
             $wuIds = @()
         }
         if ($wuIds.Count -gt 0) {
@@ -260,18 +260,18 @@ $InstallBlock = {
                     $state.ItemStatus[$u.Identity.UpdateID] = 'dl'
                 }
             }
-            foreach ($id in $wuIds) { if ($state.ItemStatus[$id] -eq 'wait') { $state.ItemStatus[$id] = 'skip'; $state.ItemReason[$id] = 'ไม่พบแล้ว อาจติดตั้งไปแล้ว' } }
+            foreach ($id in $wuIds) { if ($state.ItemStatus[$id] -eq 'wait') { $state.ItemStatus[$id] = 'skip'; $state.ItemReason[$id] = 'Not found (may already be installed)' } }
             if ($coll.Count -gt 0) {
-                $state.Status = "กำลังดาวน์โหลดจาก Windows Update $($coll.Count) รายการ..."
+                $state.Status = "Downloading $($coll.Count) items from Windows Update..."
                 $dl = $session.CreateUpdateDownloader()
                 $dl.Updates = $coll
                 [void]$dl.Download()
                 $toInstall = New-Object -ComObject Microsoft.Update.UpdateColl
                 foreach ($u in $coll) {
-                    if ($u.IsDownloaded) { [void]$toInstall.Add($u) } else { $state.Log += "[ล้มเหลว] $($u.Title): ดาวน์โหลดไม่สำเร็จ`r`n"; $state.ItemStatus[$u.Identity.UpdateID] = 'fail'; $state.ItemReason[$u.Identity.UpdateID] = 'ดาวน์โหลดไม่สำเร็จ' }
+                    if ($u.IsDownloaded) { [void]$toInstall.Add($u) } else { $state.Log += "[FAILED] $($u.Title): download failed`r`n"; $state.ItemStatus[$u.Identity.UpdateID] = 'fail'; $state.ItemReason[$u.Identity.UpdateID] = 'Download failed' }
                 }
                 if ($toInstall.Count -gt 0) {
-                    $state.Status = "กำลังติดตั้งจาก Windows Update $($toInstall.Count) รายการ..."
+                    $state.Status = "Installing $($toInstall.Count) items from Windows Update..."
                     foreach ($u in $toInstall) { $state.ItemStatus[$u.Identity.UpdateID] = 'inst' }
                     $inst = $session.CreateUpdateInstaller()
                     $inst.Updates = $toInstall
@@ -279,33 +279,33 @@ $InstallBlock = {
                     for ($i = 0; $i -lt $toInstall.Count; $i++) {
                         $code = $res.GetUpdateResult($i).ResultCode   # 2 = succeeded
                         if ($code -eq 2) { $ok++ }
-                        $txt = switch ($code) { 2 { 'สำเร็จ' } 3 { 'สำเร็จบางส่วน' } 4 { 'ล้มเหลว' } 5 { 'ยกเลิก' } default { "รหัส $code" } }
+                        $txt = switch ($code) { 2 { 'succeeded' } 3 { 'partly succeeded' } 4 { 'failed' } 5 { 'cancelled' } default { "code $code" } }
                         $uid = $toInstall.Item($i).Identity.UpdateID
                         if ($code -eq 2) { $state.ItemStatus[$uid] = 'ok' } else { $state.ItemStatus[$uid] = 'fail'; $state.ItemReason[$uid] = $txt }
-                        $state.Log += $(if ($code -eq 2) { "[สำเร็จ] " } else { "[ล้มเหลว] " }) + "$($toInstall.Item($i).Title) ($txt)`r`n"
+                        $state.Log += $(if ($code -eq 2) { "[OK] " } else { "[FAILED] " }) + "$($toInstall.Item($i).Title) ($txt)`r`n"
                     }
                     if ($res.RebootRequired) { $state.Reboot = $true }
                 }
             } else {
-                $state.Log += "ไม่พบรายการ Windows Update ที่เลือกแล้ว (อาจติดตั้งไปแล้ว)`r`n"
+                $state.Log += "The selected Windows Update items were not found (they may already be installed)`r`n"
             }
         }
         foreach ($item in @($state.CatalogItems)) {
-            if ($state.Cancel) { $state.ItemStatus[$item.Id] = 'skip'; $state.ItemReason[$item.Id] = 'หยุดตามคำขอ'; $state.Log += "[ข้าม] $($item.Title): หยุดตามคำขอ`r`n"; continue }
+            if ($state.Cancel) { $state.ItemStatus[$item.Id] = 'skip'; $state.ItemReason[$item.Id] = 'Stopped by request'; $state.Log += "[SKIPPED] $($item.Title): Stopped by request`r`n"; continue }
             # A catalog in a folder normal users can edit could be tampered with, so never install from it as admin.
-            if ($state.BlockCatalog -and $item.Source -eq 'Catalog') { $state.ItemStatus[$item.Id] = 'skip'; $state.ItemReason[$item.Id] = 'โฟลเดอร์โปรแกรมแก้ไขได้โดยผู้ใช้ทั่วไป'; $state.Log += "[ข้าม] $($item.Title): โฟลเดอร์โปรแกรมแก้ไขได้โดยผู้ใช้ทั่วไป และตั้ง RequireProtectedFolder ไว้ ติดตั้งโปรแกรมด้วย TierS-Driver-Manage-Setup.exe หรือปิดตัวเลือกนี้`r`n"; continue }
+            if ($state.BlockCatalog -and $item.Source -eq 'Catalog') { $state.ItemStatus[$item.Id] = 'skip'; $state.ItemReason[$item.Id] = 'Program folder is writable by normal users'; $state.Log += "[SKIPPED] $($item.Title): the program folder is writable by normal users and RequireProtectedFolder is set. Install with TierS-Driver-Manage-Setup.exe or turn this option off`r`n"; continue }
             $c = $item.Raw
-            $state.Status = "กำลังดาวน์โหลดและตรวจสอบ: $($item.Title)"
+            $state.Status = "Downloading and verifying: $($item.Title)"
             $state.ItemStatus[$item.Id] = 'dl'
             $work = Join-Path $env:TEMP ('DriverScan_' + [guid]::NewGuid().ToString('N'))
             $r = if ($item.Source -eq 'Microsoft Catalog') { Install-MsCatalogItem $item $work } elseif ($item.Source -eq 'NVIDIA') { Install-VendorItem $item $work } else { Install-CatalogItem $c $work }
-            if ($r.Success) { $ok++; $state.ItemStatus[$item.Id] = 'ok'; $state.Log += "[สำเร็จ] $($item.Title)`r`n" } else { $state.ItemStatus[$item.Id] = 'fail'; $state.ItemReason[$item.Id] = [string]$r.Message; $state.Log += "[ล้มเหลว] $($item.Title): $($r.Message)`r`n" }
+            if ($r.Success) { $ok++; $state.ItemStatus[$item.Id] = 'ok'; $state.Log += "[OK] $($item.Title)`r`n" } else { $state.ItemStatus[$item.Id] = 'fail'; $state.ItemReason[$item.Id] = [string]$r.Message; $state.Log += "[FAILED] $($item.Title): $($r.Message)`r`n" }
             if ($r.Reboot) { $state.Reboot = $true }
             Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
         }
-        foreach ($id in @($state.Ids)) { if ($state.ItemStatus[$id] -eq 'wait') { $state.ItemStatus[$id] = 'skip'; $state.ItemReason[$id] = 'หยุดตามคำขอ' } }
+        foreach ($id in @($state.Ids)) { if ($state.ItemStatus[$id] -eq 'wait') { $state.ItemStatus[$id] = 'skip'; $state.ItemReason[$id] = 'Stopped by request' } }
         $state.Installed = $ok
-        $state.Status = 'ติดตั้งรอบนี้เสร็จแล้ว'
+        $state.Status = 'This install round is finished'
     } catch {
         $state.Error = $_.Exception.Message
     }
@@ -356,7 +356,7 @@ function Add-InstallResults($s) {
     $new = foreach ($id in $ids) {
         $it = $script:ctx.ItemsById[$id]
         $code = $s.ItemStatus[$id]; $reason = $s.ItemReason[$id]
-        if ($code -notin 'ok', 'fail', 'skip') { $code = 'skip'; $reason = 'ยังไม่ได้ติดตั้ง' }
+        if ($code -notin 'ok', 'fail', 'skip') { $code = 'skip'; $reason = 'Not installed' }
         [pscustomobject]@{ Id = $id; Title = $it.Title; Class = $it.Class; Source = $it.Source; Date = $it.Date; SizeMB = $it.SizeMB; Status = $code; Reason = $reason }
     }
     $script:ctx.Results = @($keep) + @($new)
@@ -369,7 +369,7 @@ function Complete-Run {
     Write-LogFile $script:ctx.Log
     $script:ctx.Auto = $false
     Set-Busy $false
-    $script:lblStatus.Text = 'เสร็จแล้ว'   # the banner above the list carries the details; say it once
+    $script:lblStatus.Text = 'Done'   # the banner above the list carries the details; say it once
 }
 
 function Start-Job2($mode, $block, $state) {
@@ -391,7 +391,7 @@ function Start-InstallJob($ids) {
     if ($script:DryRun) {
         # self-test: walk the whole result path without touching the system
         foreach ($id in $ids) { $st.ItemStatus[$id] = 'ok' }
-        $st.Log = "[ทดสอบ] จะติดตั้ง $($ids.Count) รายการ (ไม่ได้ติดตั้งจริง)`r`n"; $st.Installed = $ids.Count; $st.Done = $true
+        $st.Log = "[TEST] Would install $($ids.Count) items (nothing was installed)`r`n"; $st.Installed = $ids.Count; $st.Done = $true
         $script:ctx.State = $st; $script:ctx.Mode = 'install'; Set-Busy $true; $script:timer.Start()
         return
     }
@@ -420,7 +420,7 @@ function Start-UpdateCheck { if ($script:UpdateEnabled) { Start-UpdateJob 'check
 function Invoke-UpdateClick {
     if ($script:isBusy -or -not $script:UpdateManifest) { return }
     $script:btnUpdate.Enabled = $false
-    $script:lblStatus.Text = "กำลังดาวน์โหลดและตรวจสอบการอัปเดตเป็นเวอร์ชัน $($script:UpdateManifest.version)..."
+    $script:lblStatus.Text = "Downloading and verifying the update to version $($script:UpdateManifest.version)..."
     Start-UpdateJob 'apply' $ApplyBlock $script:UpdateManifest
 }
 function Invoke-UpdateTick {
@@ -430,20 +430,20 @@ function Invoke-UpdateTick {
     if ($script:upd.Mode -eq 'check') {
         if ($s.Manifest) {
             $script:UpdateManifest = $s.Manifest
-            $script:btnUpdate.Text = "อัปเดตเป็นเวอร์ชัน $($s.Manifest.version)"; $script:btnUpdate.Visible = $true; $script:btnUpdate.Enabled = -not $script:isBusy
+            $script:btnUpdate.Text = "Update to version $($s.Manifest.version)"; $script:btnUpdate.Visible = $true; $script:btnUpdate.Enabled = -not $script:isBusy
             $script:toolTip.SetToolTip($script:btnUpdate, [string]$s.Manifest.notes)
-        } elseif ($s.Error) { $script:ctx.Log += "ตรวจอัปเดตโปรแกรม: $($s.Error)`r`n"; $script:txtLog.Text = $script:ctx.Log }
+        } elseif ($s.Error) { $script:ctx.Log += "Program update check: $($s.Error)`r`n"; $script:txtLog.Text = $script:ctx.Log }
         return
     }
     if ($s.Result.Success) {
         $script:ctx.Log += $s.Result.Message + "`r`n"; Write-LogFile $script:ctx.Log
-        $script:lblStatus.Text = 'เสร็จแล้ว: ' + $s.Result.Message + ' กำลังเปิดโปรแกรมใหม่...'
+        $script:lblStatus.Text = 'Done: ' + $s.Result.Message + ' Restarting the program...'
         $exe = Join-Path $PSScriptRoot 'TierS Driver Manage.exe'
         if (Test-Path $exe) { Start-Process $exe }
         $script:form.Close()
     } else {
-        $script:ctx.Log += "[ล้มเหลว] อัปเดตโปรแกรม: $($s.Result.Message)`r`n"; $script:txtLog.Text = $script:ctx.Log; Write-LogFile $script:ctx.Log
-        $script:lblStatus.Text = 'หยุด: อัปเดตโปรแกรมไม่สำเร็จ (ไฟล์เดิมไม่ถูกแก้ไข) ดูรายละเอียดในบันทึก'
+        $script:ctx.Log += "[FAILED] Program update: $($s.Result.Message)`r`n"; $script:txtLog.Text = $script:ctx.Log; Write-LogFile $script:ctx.Log
+        $script:lblStatus.Text = 'Stopped: the program update failed (your existing files were not changed). See the log for details.'
         $script:btnUpdate.Enabled = $true
     }
 }
@@ -491,13 +491,13 @@ function Invoke-BannerClick($name) {
         'rescan' { Invoke-ScanClick }
         'restart' {
             if (-not $script:DryRun) { Start-Process shutdown.exe -ArgumentList '/r', '/t', '30', '/c', 'TierS Driver Manage: restart to finish installing drivers' -WindowStyle Hidden }
-            Set-Banner 'warn' 'เครื่องจะรีสตาร์ทใน 30 วินาที · บันทึกงานที่ค้างอยู่ให้เรียบร้อย' @(@{ Name = 'abort'; Text = 'ยกเลิกการรีสตาร์ท'; Kind = 'primary' })
+            Set-Banner 'warn' 'The computer will restart in 30 seconds · save any open work' @(@{ Name = 'abort'; Text = 'Cancel restart'; Kind = 'primary' })
         }
         'abort' {
             if (-not $script:DryRun) { Start-Process shutdown.exe -ArgumentList '/a' -WindowStyle Hidden }
-            Set-Banner 'warn' 'ยกเลิกการรีสตาร์ทแล้ว · ไดรเวอร์จะทำงานเต็มที่หลังรีสตาร์ท' @(@{ Name = 'restart'; Text = 'รีสตาร์ทตอนนี้'; Kind = 'primary' })
+            Set-Banner 'warn' 'Restart cancelled · drivers will work fully after a restart' @(@{ Name = 'restart'; Text = 'Restart now'; Kind = 'primary' })
         }
-        'later' { Set-Banner 'warn' 'ยังไม่ได้รีสตาร์ท · ไดรเวอร์ที่ติดตั้งจะทำงานเต็มที่หลังรีสตาร์ทเครื่อง' @(@{ Name = 'restart'; Text = 'รีสตาร์ทตอนนี้'; Kind = 'primary' }) }
+        'later' { Set-Banner 'warn' 'Not restarted yet · installed drivers will work fully after a restart' @(@{ Name = 'restart'; Text = 'Restart now'; Kind = 'primary' }) }
     }
 }
 
@@ -516,7 +516,7 @@ function Invoke-Tick {
     $mode = $script:ctx.Mode
 
     if ($s.Error) {
-        $script:ctx.Log += "หยุด: $($s.Error)`r`n"
+        $script:ctx.Log += "Stopped: $($s.Error)`r`n"
         if ($mode -eq 'install') {
             $script:ctx.Installed += $s.Installed
             if ($s.Reboot) { $script:ctx.NeedReboot = $true }
@@ -530,7 +530,7 @@ function Invoke-Tick {
             Show-View 'log'
             if ($script:ctx.Results.Count -gt 0) { Complete-Run }
         }
-        $script:lblStatus.Text = "หยุด: $($s.Error)"
+        $script:lblStatus.Text = "Stopped: $($s.Error)"
         return
     }
 
@@ -547,21 +547,21 @@ function Invoke-Tick {
         $oldCount = @($s.Inventory | Where-Object { $null -ne $_.Age -and $_.Age -gt $script:OldYears -and $_.Maker -notlike 'Microsoft*' }).Count
         $script:scanned = $true
         Update-Cards $s.Inventory $items.Count @($s.Missing).Count $oldCount
-        $script:ctx.Log += "ไดรเวอร์ที่ติดตั้งอยู่ $(@($s.Inventory).Count) ตัว, เก่ากว่า $($script:OldYears) ปี (ไม่นับไดรเวอร์ของ Microsoft) $oldCount ตัว`r`n"
-        if ($script:FolderWritable) { $script:ctx.Log += "คำเตือน: โฟลเดอร์โปรแกรมนี้แก้ไขได้โดยผู้ใช้ทั่วไป ถ้ามีโปรแกรมไม่หวังดีแก้ driverdb.json ได้ มันจะถูกติดตั้งด้วยสิทธิ์ admin (ติดตั้งโปรแกรมไว้ใน C:\Program Files เพื่อความปลอดภัย)`r`n" }
+        $script:ctx.Log += "Installed drivers: $(@($s.Inventory).Count); older than $($script:OldYears) years (Microsoft drivers not counted): $oldCount`r`n"
+        if ($script:FolderWritable) { $script:ctx.Log += "Warning: the program folder is writable by normal users. If malicious software edits driverdb.json it would be installed with administrator rights (install the program in C:\Program Files for safety)`r`n" }
         if ($s.Missing.Count -gt 0) {
-            $script:ctx.Log += "อุปกรณ์ที่ยังไม่มีไดรเวอร์ที่ทำงานได้ ($($s.Missing.Count)):`r`n  - " + ($s.Missing -join "`r`n  - ") + "`r`n"
+            $script:ctx.Log += "Devices without a working driver ($($s.Missing.Count)):`r`n  - " + ($s.Missing -join "`r`n  - ") + "`r`n"
         }
         $script:txtLog.Text = $script:ctx.Log
         $script:ctx.Auto = $false
         if ($items.Count -eq 0) {
-            $script:ctx.Log += "สแกนเสร็จแล้ว: ไม่พบไดรเวอร์ใหม่กว่าจาก Windows Update หรือแค็ตตาล็อกของคุณ`r`n"
+            $script:ctx.Log += "Scan complete: no newer drivers found from Windows Update or your catalog`r`n"
             if ($script:ctx.Results.Count -gt 0) { Complete-Run; return }
             Write-LogFile $script:ctx.Log
             $script:txtLog.Text = $script:ctx.Log
             Set-Busy $false
             Enter-ReviewMode 0
-            $script:lblStatus.Text = 'สแกนเสร็จแล้ว: ไม่พบไดรเวอร์ใหม่กว่า'
+            $script:lblStatus.Text = 'Scan complete: no newer drivers found'
             return
         }
         Set-Busy $false
@@ -576,9 +576,9 @@ function Invoke-Tick {
         Add-InstallResults $s
         if ($script:ctx.Auto -and $s.Installed -gt 0 -and -not $s.Cancel -and $script:ctx.Pass -lt $script:MaxPasses) {
             $script:ctx.Pass++
-            $script:ctx.Log += "--- รอบที่ $($script:ctx.Pass): สแกนอีกครั้งเผื่อมีฮาร์ดแวร์ที่เพิ่งถูกตรวจพบ ---`r`n"
+            $script:ctx.Log += "--- Round $($script:ctx.Pass): scanning again in case newly detected hardware needs drivers ---`r`n"
             [void](Show-Results $script:ctx.Results $script:ctx.NeedReboot)
-            Set-Banner 'info' 'ติดตั้งรอบนี้เสร็จแล้ว · กำลังสแกนอีกครั้งเผื่อมีฮาร์ดแวร์ที่เพิ่งถูกตรวจพบ' @()
+            Set-Banner 'info' 'This install round is finished · scanning again in case newly detected hardware needs drivers' @()
             Start-ScanJob
             return
         }
@@ -667,9 +667,9 @@ if ($SelfTest) {
     $r = Install-CatalogItem ([pscustomobject]($base + @{ sha256 = $sha })) (Join-Path $tmp2 'w2') $lf
     Check 'install: installer without signer refused' ((-not $r.Success) -and $r.Message -match 'signer')
     $r = Install-CatalogItem ([pscustomobject]($base + @{ sha256 = $sha; signer = 'NVIDIA' })) (Join-Path $tmp2 'w3') $lf
-    Check 'install: unsigned file refused even with the right hash' ((-not $r.Success) -and $r.Message -match 'ลายเซ็น')
+    Check 'install: unsigned file refused even with the right hash' ((-not $r.Success) -and $r.Message -match 'signature')
     $r = Install-CatalogItem ([pscustomobject]@{ name = 'T'; url = 'https://evil.example.com/setup.exe'; type = 'installer'; silentArgs = '/s'; sha256 = $sha; signer = 'NVIDIA' }) (Join-Path $tmp2 'w4') $lf
-    Check 'install: host outside the built-in list refused' ((-not $r.Success) -and $r.Message -match 'ไม่อยู่ในรายการ')
+    Check 'install: host outside the built-in list refused' ((-not $r.Success) -and $r.Message -match 'allowed list')
     Remove-Item $tmp2 -Recurse -Force -ErrorAction SilentlyContinue
     # 5c) Microsoft Update Catalog provider
     Check 'ms key: PCI id trimmed to VEN+DEV' ((Get-CatalogHardwareKey 'PCI\VEN_10EC&DEV_8125&SUBSYS_7D991462&REV_05') -eq 'PCI\VEN_10EC&DEV_8125')
@@ -739,11 +739,11 @@ if ($SelfTest) {
     $msItem = [pscustomobject]@{ Raw = [pscustomobject]@{ UpdateId = 'u'; Key = 'PCI\VEN_AAAA&DEV_BBBB'; Name = 'x' } }
     $okUrl = 'https://catalog.s.download.windowsupdate.com/x.cab'
     $r = Install-MsCatalogItem $msItem (Join-Path $td 'w1') ([pscustomobject]@{ Url = $okUrl; Digest = $dig }) $cab
-    Check 'ms install: package without this hardware ID refused' ((-not $r.Success) -and $r.Message -match 'ไม่มีฮาร์ดแวร์')
+    Check 'ms install: package without this hardware ID refused' ((-not $r.Success) -and $r.Message -match 'does not contain hardware')
     $r = Install-MsCatalogItem $msItem (Join-Path $td 'w2') ([pscustomobject]@{ Url = $okUrl; Digest = 'AAAAAAAAAAAAAAAAAAAAAAAAAAA=' }) $cab
     Check 'ms install: wrong SHA-1 digest refused' ((-not $r.Success) -and $r.Message -match 'SHA-1')
     $r = Install-MsCatalogItem $msItem (Join-Path $td 'w3') ([pscustomobject]@{ Url = 'https://evil.example.com/x.cab'; Digest = $dig }) $cab
-    Check 'ms install: host outside the built-in list refused' ((-not $r.Success) -and $r.Message -match 'ไม่อยู่ในรายการ')
+    Check 'ms install: host outside the built-in list refused' ((-not $r.Success) -and $r.Message -match 'allowed list')
     Remove-Item $td -Recurse -Force -ErrorAction SilentlyContinue
     # 5b) vendor-direct (NVIDIA): version mapping, lookup with a fake server, signature/host checks
     Check 'nvidia version: 32.0.16.2114 is 621.14' ((ConvertTo-NvidiaVersion '32.0.16.2114') -eq 621.14)
@@ -763,12 +763,12 @@ if ($SelfTest) {
     $tv = Join-Path $env:TEMP ('ds_vendor_' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory $tv | Out-Null
     $unsigned = Join-Path $tv 'setup.exe'; Set-Content $unsigned 'not a real installer'
     $r = Install-VendorItem ([pscustomobject]@{ Raw = [pscustomobject]@{ Url = 'https://us.download.nvidia.com/x/setup.exe'; Signer = 'NVIDIA Corporation'; SilentArgs = '-s'; Version = '1'; InstanceId = $null } }) (Join-Path $tv 'w1') $unsigned
-    Check 'vendor install: unsigned file refused' ((-not $r.Success) -and $r.Message -match 'ลายเซ็น')
+    Check 'vendor install: unsigned file refused' ((-not $r.Success) -and $r.Message -match 'signature')
     $r = Install-VendorItem ([pscustomobject]@{ Raw = [pscustomobject]@{ Url = 'https://evil.example.com/setup.exe'; Signer = 'NVIDIA Corporation'; SilentArgs = '-s'; Version = '1'; InstanceId = $null } }) (Join-Path $tv 'w2') $unsigned
-    Check 'vendor install: host outside the built-in list refused' ((-not $r.Success) -and $r.Message -match 'ไม่อยู่ในรายการ')
+    Check 'vendor install: host outside the built-in list refused' ((-not $r.Success) -and $r.Message -match 'allowed list')
     $winSigned = Join-Path $env:windir 'System32\notepad.exe'
     $r = Install-VendorItem ([pscustomobject]@{ Raw = [pscustomobject]@{ Url = 'https://us.download.nvidia.com/x/notepad.exe'; Signer = 'NVIDIA Corporation'; SilentArgs = '/?'; Version = '1'; InstanceId = $null } }) (Join-Path $tv 'w3') $winSigned
-    Check 'vendor install: valid signature from the wrong maker refused' ((-not $r.Success) -and $r.Message -match 'ผู้เซ็นไม่ตรง')
+    Check 'vendor install: valid signature from the wrong maker refused' ((-not $r.Success) -and $r.Message -match 'Signer does not match')
     Remove-Item $tv -Recurse -Force -ErrorAction SilentlyContinue
     # 5c) self-update: signed manifest, hash, safe apply with rollback
     $rsaK = New-Object Security.Cryptography.RSACryptoServiceProvider(2048); $pub = $rsaK.ToXmlString($false); $priv = $rsaK.ToXmlString($true)
@@ -801,12 +801,12 @@ if ($SelfTest) {
     Check 'update apply: wrong zip hash refused' ((-not $r.Success) -and $r.Message -match 'SHA-256')
     $zipExe = & $mkZip 'exe' ($goodFiles + @{ 'evil.exe' = 'MZ' })
     $r = Install-AppUpdate (& $mkMan '2.0.0' $zipExe $priv) $inst (Join-Path $tu 'w3') '2.0.0' $zipExe
-    Check 'update apply: package carrying an .exe refused' ((-not $r.Success) -and $r.Message -match 'ไม่อนุญาต')
+    Check 'update apply: package carrying an .exe refused' ((-not $r.Success) -and $r.Message -match 'not allowed')
     $brokenFiles = $goodFiles.Clone(); $brokenFiles['DriverUI.ps1'] = 'function {{{ broken'
     $zipBroken = & $mkZip 'broken' $brokenFiles
     $before = Get-Content (Join-Path $inst 'DriverCore.ps1') -Raw
     $r = Install-AppUpdate (& $mkMan '2.0.1' $zipBroken $priv) $inst (Join-Path $tu 'w4') '2.0.0' $zipBroken
-    Check 'update apply: script with a syntax error refused and nothing changed' ((-not $r.Success) -and $r.Message -match 'ไวยากรณ์' -and (Get-Content (Join-Path $inst 'DriverCore.ps1') -Raw) -eq $before)
+    Check 'update apply: script with a syntax error refused and nothing changed' ((-not $r.Success) -and $r.Message -match 'syntax' -and (Get-Content (Join-Path $inst 'DriverCore.ps1') -Raw) -eq $before)
     Check 'update apply: the user''s driverdb.json is never overwritten' ((Get-Content (Join-Path $inst 'driverdb.json') -Raw) -match 'mine')
     Remove-Item $tu -Recurse -Force -ErrorAction SilentlyContinue
     # 5d) shipped catalog: Intel graphics entries match the right GPUs only
@@ -869,7 +869,7 @@ if ($SelfTest) {
     Check 'no-driver: both devices carry their hardware and compatible IDs, without a version' ($noDrv.Count -eq 2 -and $noDrv[0].HardwareId.Count -eq 3 -and $null -eq $noDrv[0].Version)
     $fakeRows = { param($k) @([pscustomobject]@{ UpdateId = '11111111-1111-1111-1111-111111111111'; Title = 'HP printer driver'; Products = 'Windows 11'; Class = 'Drivers (Printers)'; Date = [datetime]'2026-01-01'; Version = '1.2.3.4'; SizeMB = 5 }) }
     $offersND = @(Find-MsCatalogUpdates $noDrv ([pscustomobject]@{ Arch = 'x64'; Os = '11' }) 40 { param($k) if ($k -like 'USB*') { & $fakeRows $k } else { @() } })
-    Check 'no-driver: a device with no driver at all is offered the catalog driver' ($offersND.Count -eq 1 -and $offersND[0].Title -match 'ยังไม่มีไดรเวอร์' -and $offersND[0].Raw.Name -eq 'Unknown USB Printer')
+    Check 'no-driver: a device with no driver at all is offered the catalog driver' ($offersND.Count -eq 1 -and $offersND[0].Title -match 'no driver yet' -and $offersND[0].Raw.Name -eq 'Unknown USB Printer')
     $unres = @(Get-UnresolvedDevices $noDrv $offersND)
     Check 'no-driver: only the device nothing matched is reported as unresolved' ($unres.Count -eq 1 -and $unres[0].Name -eq 'Mystery device')
     # 6) full GUI flow in DryRun: scan -> review -> install -> results
@@ -898,19 +898,19 @@ if ($SelfTest) {
     Wait-Idle 20
     Check 'gui: install finished into results mode' ($script:gridMode -eq 'results' -and $script:grid.Rows.Count -eq 2)
     Check 'gui: results kept as ok' (@($script:ctx.Results | Where-Object { $_.Status -eq 'ok' }).Count -eq 2)
-    Check 'gui: banner names the install count once, status line is short' (($script:lblBanner.Text -match '2') -and $script:lblStatus.Text -eq 'เสร็จแล้ว')
-    Check 'gui: all-ok ending offers scan again, no restart' ((@($script:bannerBtns | Where-Object Visible | ForEach-Object Name) -join ',') -eq 'rescan')
+    Check 'gui: banner names the install count once, status line is short' (($script:lblBanner.Text -match '2') -and $script:lblStatus.Text -eq 'Done')
+    Check 'gui: all-ok ending offers restart and scan again' ((@($script:bannerBtns | Where-Object Visible | ForEach-Object Name) -join ',') -eq 'restart,rescan')
     Check 'gui: summary chip reflects the run, not the old scan' ($script:sumUpdates.Text -match '2')
     Check 'gui: progress bar hidden when idle' (-not $script:progress.Visible)
     [Windows.Forms.Application]::DoEvents(); $f.PerformLayout()   # Top values are only final after layout
     $tops = @($f.Controls | Sort-Object TabIndex | ForEach-Object { $_.Top })
     Check 'gui: tab order follows the visual order top to bottom' (($tops -join ',') -eq (($tops | Sort-Object) -join ','))
-    Check 'plain reason: SHA failure is explained in Thai' ((Get-PlainReason 'SHA-256 ไม่ตรง') -match 'ไม่สมบูรณ์')
+    Check 'plain reason: SHA failure is explained in plain English' ((Get-PlainReason 'SHA-256 mismatch (got X)') -match 'incomplete')
     Check 'plain reason: unknown text is kept' ((Get-PlainReason 'xyz') -eq 'xyz')
     Check 'gui: unticked driver is not offered again' ($script:ctx.Declined -contains 'ms:3')
     Check 'gui: dates before 1990 show a dash' ((Format-DateText '1968-07-18') -eq '—')
     # failure path: banner offers retry, retry reinstalls only the failed one
-    $script:ctx.Results = @([pscustomobject]@{ Id = 'ms:1'; Title = 'Realtek Audio'; Class = 'MEDIA'; Source = 'x'; Date = ''; SizeMB = 1; Status = 'fail'; Reason = 'ทดสอบ' }, [pscustomobject]@{ Id = 'ms:2'; Title = 'Intel Wi-Fi'; Class = 'NET'; Source = 'x'; Date = ''; SizeMB = 1; Status = 'ok'; Reason = '' })
+    $script:ctx.Results = @([pscustomobject]@{ Id = 'ms:1'; Title = 'Realtek Audio'; Class = 'MEDIA'; Source = 'x'; Date = ''; SizeMB = 1; Status = 'fail'; Reason = 'test' }, [pscustomobject]@{ Id = 'ms:2'; Title = 'Intel Wi-Fi'; Class = 'NET'; Source = 'x'; Date = ''; SizeMB = 1; Status = 'ok'; Reason = '' })
     $script:ctx.NeedReboot = $true
     Complete-Run
     Check 'gui: banner shows restart + retry buttons' (($script:bannerBtns | Where-Object Visible | Measure-Object).Count -eq 3)
@@ -924,7 +924,7 @@ if ($SelfTest) {
     Check 'gui: a list with only unresolved devices is shown but offers no install' ($script:grid.Visible -and -not $script:btnInstall.Visible -and -not $script:chkAll.Visible)
     $itX = [pscustomobject]@{ Id = 'ms:9'; Title = 'Some driver'; Class = 'NET'; Source = 'Microsoft Catalog'; Date = ''; SizeMB = 1 }
     $script:ctx.ItemsById[$itX.Id] = $itX; Add-UpdateRow $itX; Enter-ReviewMode 0
-    Check 'gui: unresolved rows are not counted in the selection' ($script:lblSel.Text -match '1 จาก 1')
+    Check 'gui: unresolved rows are not counted in the selection' ($script:lblSel.Text -match '1 of 1')
     $f.Close(); $f.Dispose()
     "FAILED CHECKS: $fail"
     exit $fail

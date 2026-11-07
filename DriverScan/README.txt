@@ -1,33 +1,28 @@
-﻿TierS Driver Manage - สแกนและติดตั้งไดรเวอร์ให้ครบ 1 คลิก (Windows 10/11 x64)
+﻿TierS Driver Manage - scan and install drivers with one click (Windows 10/11 x64)
 
-วิธีใช้
-1. คัดลอกทั้งโฟลเดอร์ไปไว้ที่ C:\Program Files\TierS Driver Manage (แนะนำ)
-2. ดับเบิลคลิก DriverScan.cmd แล้วกด Yes ที่หน้าต่าง UAC (ต้องใช้สิทธิ์ admin และอินเทอร์เน็ต)
-3. กด "สแกนอย่างเดียว" เพื่อดูรายการก่อน หรือ "สแกน + ติดตั้งให้ครบ (1 คลิก)"
-   - ในโหมด 1 คลิก จะมีหน้าต่างให้ติ๊กเลือก/เอาออกก่อนติดตั้ง
-   - ไดรเวอร์ระบบ (chipset, Management Engine) ควรลงอย่างระวัง ถ้าไม่แน่ใจให้เอาออก
+INSTALL
+1. Run TierS-Driver-Manage-Setup.exe and follow the wizard (needs administrator rights and an internet connection).
+2. Start "TierS Driver Manage" from the Start menu or the desktop shortcut.
 
-แหล่งไดรเวอร์ (รวมเป็นรายการเดียว)
-- Windows Update (ทางการของ Microsoft)
-- Microsoft Update Catalog ค้นด้วย hardware ID (ไดรเวอร์ที่ Microsoft เซ็นรับรอง)
-  อ่านจากหน้าเว็บของแคตตาล็อก ถ้า Microsoft เปลี่ยนหน้า โปรแกรมจะแจ้งว่า "ค้นไม่สำเร็จ" ไม่เงียบหายไป
-- driverdb.json (รายการของคุณเอง เช่น Intel Wi-Fi/Bluetooth, NVIDIA GeForce RTX)
+USE
+1. Click "Scan drivers". The program reads this PC's hardware and looks for newer drivers in:
+   - Windows Update
+   - Microsoft Update Catalog (searched by hardware ID, WHQL-signed)
+   - NVIDIA (the manufacturer's own service, for GeForce cards)
+   - the program's signed online catalog and your own driverdb.json
+2. Review the list. Chipset/system drivers are not ticked by default. Devices with no driver and no match are listed as "No driver found automatically".
+3. Click "Install". Progress is shown per driver. When it finishes you can restart the computer from the same screen.
 
-ความปลอดภัย
-- โหลดเฉพาะ https จากโฮสต์ที่ระบุไว้ใน DriverCore.ps1 ($BuiltInHosts) ปัจจุบัน: nvidia.com, intel.com, windowsupdate.com
-- ตรวจ SHA-256 (รายการของคุณ) หรือ SHA-1 (Microsoft Catalog), ลายเซ็นตัวติดตั้ง และ hardware ID ในแพ็กเกจก่อนติดตั้ง
-- วางโปรแกรมใน C:\Program Files แล้วแก้ $script:RequireProtectedFolder = $true ใน DriverScan.ps1
-  (ถ้าเป็น $false และโฟลเดอร์แก้ไขได้ โปรแกรมอื่นที่แก้ driverdb.json ได้จะถูกติดตั้งด้วยสิทธิ์ admin)
-- บันทึกการทำงาน: C:\ProgramData\TierS Driver Manage\DriverScan.log
+SAFETY
+- Only https downloads from an allowed host list that is built into the program (a catalog can never widen it).
+- Every file is checked: SHA-256 (or SHA-1 for Microsoft Catalog), and installers must carry a valid digital signature from the expected publisher.
+- A system restore point is created before installing (Windows allows one every 24 hours).
+- The program updates itself from a signed manifest; updates never contain executables and are rolled back on any error.
 
-เพิ่มรายการใน driverdb.json
-  .\New-CatalogEntry.ps1 -Name '...' -Url 'https://...' -Type installer -Match 'PCI\VEN_xxxx&DEV_*' `
-      -Class NET -NameLike 'ชื่ออุปกรณ์*' -Version 'x.x.x.x' -SilentArgs '...'
-  ตัวสร้างจะโหลดไฟล์ คำนวณ SHA-256 อ่านผู้เซ็น และเขียนรายการให้ (ดู driverdb.example.json)
+YOUR OWN CATALOG
+- Add drivers to driverdb.json with New-CatalogEntry.ps1 (downloads the file, checks hash and signature, writes the entry).
+- Use -ExpectedSha512 when the vendor prints a SHA-512 on its download page.
 
-ข้อจำกัด
-- ยังไม่ทดสอบบน Windows 10 และเครื่อง ARM; หน้าจอเป็นภาษาไทย
-- ไม่มีโหมดออฟไลน์ ต้องมีอินเทอร์เน็ต
-- สคริปต์ไม่ได้เซ็นลายเซ็น แอนตี้ไวรัสหรือ SmartScreen อาจเตือน
-- Bluetooth ของ Intel (/quiet) จะรีบูตเครื่องอัตโนมัติ
-- ค่าแฮชผูกกับไฟล์เวอร์ชันนั้น ถ้าผู้ผลิตเปลี่ยนไฟล์ โปรแกรมจะปฏิเสธจนกว่าจะอัปเดตรายการ
+FILES
+- Log: C:\ProgramData\TierS Driver Manage\DriverScan.log
+- Shortcuts, uninstall entry and the Setup wizard are created by the installer.

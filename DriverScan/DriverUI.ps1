@@ -56,11 +56,11 @@ function New-Icon($kind, $color, [int]$size = 16) {
 
 # ---------- plain-language labels ----------
 function Get-ClassLabel($c) {
-    $map = @{ DISPLAY = 'การ์ดจอ'; NET = 'เครือข่าย'; MEDIA = 'เสียง'; BLUETOOTH = 'บลูทูธ'; SYSTEM = 'ระบบ / ชิปเซ็ต'; USB = 'USB'; HDC = 'ที่เก็บข้อมูล'; SCSIADAPTER = 'ที่เก็บข้อมูล'; CAMERA = 'กล้อง'; IMAGE = 'กล้อง/สแกนเนอร์'; MONITOR = 'จอภาพ'; HIDCLASS = 'อุปกรณ์อินพุต'; KEYBOARD = 'คีย์บอร์ด'; MOUSE = 'เมาส์'; PRINTER = 'เครื่องพิมพ์'; FIRMWARE = 'เฟิร์มแวร์'; PROCESSOR = 'ซีพียู' }
+    $map = @{ DISPLAY = 'Graphics'; NET = 'Network'; MEDIA = 'Audio'; BLUETOOTH = 'Bluetooth'; SYSTEM = 'System / Chipset'; USB = 'USB'; HDC = 'Storage'; SCSIADAPTER = 'Storage'; CAMERA = 'Camera'; IMAGE = 'Camera / Scanner'; MONITOR = 'Monitor'; HIDCLASS = 'Input device'; KEYBOARD = 'Keyboard'; MOUSE = 'Mouse'; PRINTER = 'Printer'; FIRMWARE = 'Firmware'; PROCESSOR = 'Processor' }
     if ($c -and $map.ContainsKey([string]$c)) { return $map[[string]$c] }
     return [string]$c
 }
-function Get-SourceLabel($s) { if ($s -eq 'Catalog') { 'แค็ตตาล็อกของคุณ' } else { [string]$s } }
+function Get-SourceLabel($s) { if ($s -eq 'Catalog') { 'Your catalog' } else { [string]$s } }
 function Format-SizeText($mb) {
     if ($null -eq $mb -or $mb -eq '') { return '' }
     $v = [double]$mb
@@ -189,7 +189,7 @@ function Add-UpdateRow($it) {
     $T = $script:Theme
     $system = ($it.Class -eq 'SYSTEM')
     $icon = $(if ($system) { New-Icon 'shield' $T.Warn } else { $null })
-    $idx = $script:grid.Rows.Add((-not $system), $icon, $it.Title, (Get-ClassLabel $it.Class), (Get-SourceLabel $it.Source), (Format-DateText $it.Date), (Format-SizeText $it.SizeMB), $(if ($system) { 'ควรตรวจก่อน' } else { '' }))
+    $idx = $script:grid.Rows.Add((-not $system), $icon, $it.Title, (Get-ClassLabel $it.Class), (Get-SourceLabel $it.Source), (Format-DateText $it.Date), (Format-SizeText $it.SizeMB), $(if ($system) { 'Review first' } else { '' }))
     $row = $script:grid.Rows[$idx]
     $row.Tag = $it.Id
     $row.Cells[2].ToolTipText = [string]$it.Title
@@ -203,11 +203,11 @@ function Test-InfoRow($row) { return ([string]$row.Tag -like 'info:*') }
 function Add-InfoRow($d) {
     $T = $script:Theme
     $hid = (@($d.HardwareId) | Select-Object -First 1)
-    $idx = $script:grid.Rows.Add($false, (New-Icon 'info' $T.Muted), "$($d.Name)", (Get-ClassLabel $d.Class), '—', '', '', 'ไม่พบไดรเวอร์อัตโนมัติ')
+    $idx = $script:grid.Rows.Add($false, (New-Icon 'info' $T.Muted), "$($d.Name)", (Get-ClassLabel $d.Class), '—', '', '', 'No driver found')
     $row = $script:grid.Rows[$idx]
     $row.Tag = 'info:' + $d.InstanceId
     $row.Cells[0].ReadOnly = $true
-    $row.Cells[2].ToolTipText = "$($d.Name)`r`nHardware ID: $hid`r`nไม่พบไดรเวอร์จาก Windows Update หรือ Microsoft Catalog ลองหาจากเว็บผู้ผลิตด้วย Hardware ID นี้"
+    $row.Cells[2].ToolTipText = "$($d.Name)`r`nHardware ID: $hid`r`nNo driver was found in Windows Update or the Microsoft Catalog. Try the manufacturer's website using this Hardware ID."
     $row.Cells[6].Tag = 0.0
     $st = $row.Cells[7].Style; $st.ForeColor = $T.Muted; $st.SelectionForeColor = $T.Muted; $st.Font = New-Font 10 $true
 }
@@ -215,7 +215,7 @@ function Add-InfoRow($d) {
 function Add-InventoryRow($d) {
     $T = $script:Theme
     $old = ($null -ne $d.Age) -and ($d.Age -gt $script:OldYears) -and ($d.Maker -notlike 'Microsoft*')
-    $status = $(if ($old) { 'เก่า ' + $d.Age + ' ปี' } elseif ($null -ne $d.Age) { 'ปกติ' } else { '' })
+    $status = $(if ($old) { 'Old (' + $d.Age + ' yr)' } elseif ($null -ne $d.Age) { 'OK' } else { '' })
     $idx = $script:invGrid.Rows.Add($(if ($old) { New-Icon 'clock' $T.Warn } else { $null }), $d.Name, (Get-ClassLabel $d.Class), $d.Maker, $d.Version, (Format-DateText $d.Date), $status)
     $c = $script:invGrid.Rows[$idx].Cells[6]
     $c.Tag = $(if ($null -ne $d.Age) { [double]$d.Age } else { -1.0 })
@@ -225,10 +225,10 @@ function Add-InventoryRow($d) {
 # Technical failure text -> a sentence a PC owner can act on. The raw text stays in the tooltip and the log.
 function Get-PlainReason($r) {
     $t = [string]$r
-    if ($t -match 'SHA') { return 'ไฟล์ที่ดาวน์โหลดไม่ตรงกับที่คาดไว้ (อาจไม่สมบูรณ์) ลองใหม่ได้' }
-    if ($t -match 'ลายเซ็น|signer|Authenticode|signature') { return 'ตรวจลายเซ็นผู้ผลิตไม่ผ่าน จึงไม่ติดตั้งเพื่อความปลอดภัย' }
-    if ($t -match 'ไม่อยู่ในรายการ') { return 'แหล่งดาวน์โหลดไม่อยู่ในรายการที่โปรแกรมอนุญาต' }
-    if ($t -match 'timed out|timeout|remote name|unable to connect|ไม่สามารถเชื่อมต่อ|เชื่อมต่อ') { return 'เชื่อมต่อไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่' }
+    if ($t -match 'SHA') { return 'The downloaded file does not match what was expected (it may be incomplete). You can retry.' }
+    if ($t -match 'signer|Authenticode|signature') { return 'The manufacturer signature check failed, so it was not installed for safety.' }
+    if ($t -match 'allowed list') { return 'The download source is not in the program''s allowed list.' }
+    if ($t -match 'timed out|timeout|remote name|unable to connect') { return 'Could not connect. Check your internet connection and try again.' }
     return $t
 }
 
@@ -239,12 +239,12 @@ function Set-RowStatus($row, $code, $reason) {
     $reason = Get-PlainReason $reason
     $size = $row.Cells[6].Value
     switch ($code) {
-        'wait' { $icon = New-Icon 'wait' $T.Muted;  $text = 'รอคิว';  $color = $T.Muted }
-        'dl'   { $icon = New-Icon 'active' $T.Accent; $text = $(if ($size) { "กำลังดาวน์โหลด ($size)" } else { 'กำลังดาวน์โหลด' }); $color = $T.Accent }
-        'inst' { $icon = New-Icon 'active' $T.Accent; $text = 'กำลังติดตั้ง'; $color = $T.Accent }
-        'ok'   { $icon = New-Icon 'check' $T.Good; $text = 'ติดตั้งแล้ว'; $color = $T.Good }
-        'fail' { $icon = New-Icon 'cross' $T.Bad;  $text = $(if ($reason) { "ล้มเหลว: $reason" } else { 'ล้มเหลว' }); $color = $T.Bad }
-        'skip' { $icon = New-Icon 'minus' $T.Warn;  $text = $(if ($reason) { "ข้าม: $reason" } else { 'ข้าม' }); $color = $T.Warn }
+        'wait' { $icon = New-Icon 'wait' $T.Muted;  $text = 'Queued';  $color = $T.Muted }
+        'dl'   { $icon = New-Icon 'active' $T.Accent; $text = $(if ($size) { "Downloading ($size)" } else { 'Downloading' }); $color = $T.Accent }
+        'inst' { $icon = New-Icon 'active' $T.Accent; $text = 'Installing'; $color = $T.Accent }
+        'ok'   { $icon = New-Icon 'check' $T.Good; $text = 'Installed'; $color = $T.Good }
+        'fail' { $icon = New-Icon 'cross' $T.Bad;  $text = $(if ($reason) { "Failed: $reason" } else { 'Failed' }); $color = $T.Bad }
+        'skip' { $icon = New-Icon 'minus' $T.Warn;  $text = $(if ($reason) { "Skipped: $reason" } else { 'Skipped' }); $color = $T.Warn }
         default { $icon = $null; $text = ''; $color = $T.Muted }
     }
     $row.Cells[1].Value = $icon
@@ -264,8 +264,8 @@ function Update-RunUi($state) {
     }
     if ($total -gt 0) { $script:progress.Style = 'Continuous'; $script:progress.Value = [int][math]::Min(100, [math]::Round(100.0 * $done / $total)) }
     $stopping = ($state.Cancel -eq $true)
-    $msg = $(if ($stopping) { "กำลังหยุดหลังรายการนี้ · เสร็จแล้ว $done จาก $total" } else { "กำลังติดตั้ง $done จาก $total · อย่าปิดโปรแกรมหรือดับเครื่อง" })
-    Set-Banner 'info' $msg @(@{ Name = 'stop'; Text = $(if ($stopping) { 'กำลังหยุด...' } else { 'หยุดหลังรายการนี้' }); Kind = 'secondary'; Enabled = (-not $stopping) })
+    $msg = $(if ($stopping) { "Stopping after this item · $done of $total done" } else { "Installing $done of $total · do not close the program or turn off the PC" })
+    Set-Banner 'info' $msg @(@{ Name = 'stop'; Text = $(if ($stopping) { 'Stopping...' } else { 'Stop after this item' }); Kind = 'secondary'; Enabled = (-not $stopping) })
 }
 
 # ---------- banner above the list: review hint, live run, results ----------
@@ -313,14 +313,14 @@ function Set-UpdatesChip {
     if (-not $script:scanned) { $chip.Text = ''; $chip.Image = $null; return }
     switch ($script:gridMode) {
         'review' {
-            if ($total -gt 0) { $chip.Text = "$total รายการรอติดตั้ง"; $chip.Image = (New-Icon 'up' $T.Accent 22); $chip.ForeColor = $T.Accent }
-            else { $chip.Text = 'ไดรเวอร์เป็นปัจจุบัน'; $chip.Image = (New-Icon 'check' $T.Good 22); $chip.ForeColor = $T.Good }
+            if ($total -gt 0) { $chip.Text = "$total to install"; $chip.Image = (New-Icon 'up' $T.Accent 22); $chip.ForeColor = $T.Accent }
+            else { $chip.Text = 'Drivers are up to date'; $chip.Image = (New-Icon 'check' $T.Good 22); $chip.ForeColor = $T.Good }
         }
-        'run' { $chip.Text = "กำลังติดตั้ง $total รายการ"; $chip.Image = (New-Icon 'active' $T.Accent 22); $chip.ForeColor = $T.Accent }
+        'run' { $chip.Text = "Installing $total"; $chip.Image = (New-Icon 'active' $T.Accent 22); $chip.ForeColor = $T.Accent }
         default {
             $ok = @($script:ctx.Results | Where-Object { $_.Status -eq 'ok' }).Count; $bad = @($script:ctx.Results | Where-Object { $_.Status -ne 'ok' }).Count
-            if ($bad -gt 0) { $chip.Text = "ติดตั้งแล้ว $ok · ไม่สำเร็จ $bad"; $chip.Image = (New-Icon 'info' $T.Warn 22); $chip.ForeColor = $T.Warn }
-            else { $chip.Text = "ติดตั้งแล้ว $ok รายการ"; $chip.Image = (New-Icon 'check' $T.Good 22); $chip.ForeColor = $T.Good }
+            if ($bad -gt 0) { $chip.Text = "Installed $ok · not completed $bad"; $chip.Image = (New-Icon 'info' $T.Warn 22); $chip.ForeColor = $T.Warn }
+            else { $chip.Text = "Installed $ok"; $chip.Image = (New-Icon 'check' $T.Good 22); $chip.ForeColor = $T.Good }
         }
     }
 }
@@ -329,10 +329,10 @@ function Set-UpdatesChip {
 function Update-Cards($inventory, $updates, $missing, $old) {
     $T = $script:Theme
     $n = @($inventory).Count
-    $script:sumInstalled.Text = "$n ไดรเวอร์ในเครื่อง"; $script:sumInstalled.Image = (New-Icon 'active' $T.Muted 22)
-    $script:toolTip.SetToolTip($script:sumInstalled, "เก่ากว่า $($script:OldYears) ปี: $old ตัว (ไม่นับของ Microsoft) · คลิกเพื่อดูรายการ")
-    if ($missing -gt 0) { $script:sumProblems.Text = "$missing อุปกรณ์ที่ยังไม่มีไดรเวอร์ (ดูในบันทึก)"; $script:sumProblems.Image = (New-Icon 'info' $T.Bad 22); $script:sumProblems.ForeColor = $T.Bad }
-    else { $script:sumProblems.Text = 'ไม่พบอุปกรณ์ที่มีปัญหา'; $script:sumProblems.Image = (New-Icon 'check' $T.Good 22); $script:sumProblems.ForeColor = $T.Good }
+    $script:sumInstalled.Text = "$n drivers on this PC"; $script:sumInstalled.Image = (New-Icon 'active' $T.Muted 22)
+    $script:toolTip.SetToolTip($script:sumInstalled, "Older than $($script:OldYears) years: $old (Microsoft drivers not counted) · click to view the list")
+    if ($missing -gt 0) { $script:sumProblems.Text = "$missing devices without a driver (see the log)"; $script:sumProblems.Image = (New-Icon 'info' $T.Bad 22); $script:sumProblems.ForeColor = $T.Bad }
+    else { $script:sumProblems.Text = 'No problem devices found'; $script:sumProblems.Image = (New-Icon 'check' $T.Good 22); $script:sumProblems.ForeColor = $T.Good }
 }
 
 function Show-View($name) {
@@ -360,21 +360,21 @@ function Update-SelectionUi {
     $rowCount = $script:grid.Rows.Count
     $total = @($script:grid.Rows | Where-Object { -not (Test-InfoRow $_) }).Count   # tickable rows only
     $canAct = $review -and (-not $script:isBusy)
-    $script:btnInstall.Text = $(if ($n -gt 0) { "ติดตั้ง $n รายการ" } else { 'ติดตั้ง' })
+    $script:btnInstall.Text = $(if ($n -gt 0) { "Install $n" } else { 'Install' })
     $script:btnInstall.Visible = $canAct -and ($total -gt 0)
     $script:btnInstall.Enabled = $canAct -and ($n -gt 0)
     $script:chkAll.Visible = $canAct -and ($total -gt 0)
     $script:lblSel.Visible = $canAct -and ($total -gt 0)
-    $script:lblSel.Text = $(if ($total -gt 0) { "ติ๊ก $n จาก $total รายการ" + $(if ($sum -gt 0) { ' · ' + (Format-SizeText $sum) } else { '' }) } else { '' })
+    $script:lblSel.Text = $(if ($total -gt 0) { "$n of $total selected" + $(if ($sum -gt 0) { ' · ' + (Format-SizeText $sum) } else { '' }) } else { '' })
     $script:chkRestore.Enabled = -not $script:isBusy
     $script:syncing = $true
     $script:chkAll.Checked = ($total -gt 0 -and $n -eq $total)
     $script:syncing = $false
     $script:grid.Visible = ($rowCount -gt 0)
     $script:lblEmpty.Visible = ($rowCount -eq 0)
-    if ($script:isBusy) { $script:lblEmpty.Text = "กำลังสแกนเครื่อง...`r`nอาจใช้เวลาประมาณ 1-2 นาที"; $script:lblEmpty.ForeColor = $T.Muted }
-    elseif ($script:scanned) { $script:lblEmpty.Text = "ไดรเวอร์เป็นปัจจุบันแล้ว`r`nไม่พบไดรเวอร์ที่ใหม่กว่าจากแหล่งที่ตรวจ"; $script:lblEmpty.ForeColor = $T.Good }
-    else { $script:lblEmpty.Text = "สแกน   ›   ตรวจรายการ   ›   ติดตั้ง`r`n`r`nกด [สแกนไดรเวอร์] โปรแกรมจะหาไดรเวอร์ที่ใหม่กว่าให้ คุณตรวจรายการก่อน แล้วค่อยกดติดตั้ง`r`nใช้เวลาสแกนประมาณ 1-2 นาที ต้องต่ออินเทอร์เน็ตไว้"; $script:lblEmpty.ForeColor = $T.Muted }
+    if ($script:isBusy) { $script:lblEmpty.Text = "Scanning this PC...`r`nThis can take about 1-2 minutes"; $script:lblEmpty.ForeColor = $T.Muted }
+    elseif ($script:scanned) { $script:lblEmpty.Text = "Drivers are up to date`r`nNo newer drivers were found in the sources checked"; $script:lblEmpty.ForeColor = $T.Good }
+    else { $script:lblEmpty.Text = "Scan   ›   Review   ›   Install`r`n`r`nClick [Scan drivers]. The program finds newer drivers, you review the list, then click Install.`r`nScanning takes about 1-2 minutes and needs an internet connection."; $script:lblEmpty.ForeColor = $T.Muted }
     Set-UpdatesChip
     if ($total -gt 0 -and $script:grid.IsHandleCreated -and $script:grid.Visible -and $script:viewPanels['updates'].Visible) { $script:grid.ClearSelection() }
 }
@@ -393,11 +393,11 @@ function Set-Busy($busy) {
 function Enter-ReviewMode([int]$priorInstalled = 0) {
     $script:gridMode = 'review'
     $script:grid.Columns[0].Visible = $true
-    $script:grid.Columns[7].HeaderText = 'หมายเหตุ'
+    $script:grid.Columns[7].HeaderText = 'Notes'
     $n = @($script:grid.Rows | Where-Object { -not (Test-InfoRow $_) }).Count
     $sys = 0; foreach ($r in $script:grid.Rows) { if ($r.Cells[0].Value -ne $true -and -not (Test-InfoRow $r)) { $sys++ } }
-    if ($priorInstalled -gt 0 -and $n -gt 0) { Set-Banner 'info' "ติดตั้งแล้ว $priorInstalled รายการ · พบอีก $n รายการจากฮาร์ดแวร์ที่เพิ่งถูกตรวจพบ ตรวจรายการแล้วกดติดตั้งอีกครั้ง" @() }
-    elseif ($sys -gt 0) { Set-Banner 'warn' 'ไดรเวอร์ชิปเซ็ตและระบบไม่ได้ติ๊กไว้ให้ เพราะกระทบทั้งเครื่อง และส่วนใหญ่ไม่จำเป็นต้องอัปเดต ติ๊กเองถ้าต้องการ' @() }
+    if ($priorInstalled -gt 0 -and $n -gt 0) { Set-Banner 'info' "Installed $priorInstalled · $n more found from newly detected hardware. Review the list and click Install again." @() }
+    elseif ($sys -gt 0) { Set-Banner 'warn' 'Chipset and system drivers are not ticked because they affect the whole PC and most do not need updating. Tick them yourself if you want them.' @() }
     else { Set-Banner 'hidden' '' }
     Update-SelectionUi
 }
@@ -405,10 +405,10 @@ function Enter-ReviewMode([int]$priorInstalled = 0) {
 function Enter-RunMode {
     $script:gridMode = 'run'
     $script:grid.Columns[0].Visible = $false
-    $script:grid.Columns[7].HeaderText = 'สถานะ'
+    $script:grid.Columns[7].HeaderText = 'Status'
     foreach ($row in $script:grid.Rows) { Set-RowStatus $row 'wait' '' }
     $script:progress.Style = 'Continuous'; $script:progress.Value = 0; $script:progress.MarqueeAnimationSpeed = 0; $script:progress.Visible = $true
-    Set-Banner 'info' 'กำลังเตรียมติดตั้ง...' @(@{ Name = 'stop'; Text = 'หยุดหลังรายการนี้'; Kind = 'secondary'; Enabled = $true })
+    Set-Banner 'info' 'Getting ready to install...' @(@{ Name = 'stop'; Text = 'Stop after this item'; Kind = 'secondary'; Enabled = $true })
     Show-View 'updates'
     Update-SelectionUi
 }
@@ -418,7 +418,7 @@ function Show-Results($results, [bool]$needReboot) {
     $script:gridMode = 'results'
     $script:grid.Rows.Clear()
     $script:grid.Columns[0].Visible = $false
-    $script:grid.Columns[7].HeaderText = 'สถานะ'
+    $script:grid.Columns[7].HeaderText = 'Status'
     $ok = 0; $fail = 0; $skip = 0
     foreach ($r in @($results)) {
         $idx = $script:grid.Rows.Add($false, $null, $r.Title, (Get-ClassLabel $r.Class), (Get-SourceLabel $r.Source), (Format-DateText $r.Date), (Format-SizeText $r.SizeMB), '')
@@ -426,17 +426,19 @@ function Show-Results($results, [bool]$needReboot) {
         Set-RowStatus $row $r.Status $r.Reason
         switch ($r.Status) { 'ok' { $ok++ } 'fail' { $fail++ } default { $skip++ } }
     }
-    $parts = @("ติดตั้งแล้ว $ok")
-    if ($skip -gt 0) { $parts += "ข้าม $skip" }
-    if ($fail -gt 0) { $parts += "ล้มเหลว $fail" }
+    $parts = @("Installed $ok")
+    if ($skip -gt 0) { $parts += "Skipped $skip" }
+    if ($fail -gt 0) { $parts += "Failed $fail" }
     $text = ($parts -join ' · ')
-    if ($needReboot) { $text += ' · ต้องรีสตาร์ทเครื่องเพื่อให้ไดรเวอร์ทำงานเต็มที่' } elseif ($fail -eq 0 -and $skip -eq 0) { $text += ' · เสร็จเรียบร้อย ไม่ต้องรีสตาร์ท' }
+    if ($needReboot) { $text += ' · A restart is needed for the drivers to work fully' } elseif ($fail -eq 0 -and $skip -eq 0) { $text += ' · Finished, no restart needed' }
     $mode = $(if ($fail -gt 0) { 'bad' } elseif ($skip -gt 0 -or $needReboot) { 'warn' } else { 'good' })
     $buttons = @()
-    if ($needReboot) { $buttons += @{ Name = 'restart'; Text = 'รีสตาร์ทตอนนี้'; Kind = 'primary' }; $buttons += @{ Name = 'later'; Text = 'ไว้ทีหลัง'; Kind = 'link' } }
-    if ($fail -gt 0) { $buttons += @{ Name = 'retry'; Text = 'ลองใหม่เฉพาะที่ล้มเหลว'; Kind = $(if ($needReboot) { 'link' } else { 'primary' }) } }
-    if (-not $needReboot -and $fail -eq 0) { $buttons += @{ Name = 'rescan'; Text = 'สแกนอีกครั้ง'; Kind = 'link' } }
-    if (@($results).Count -eq 0) { Set-Banner 'good' 'ไม่มีรายการที่ต้องติดตั้ง' @() } else { Set-Banner $mode $text $buttons }
+    if ($needReboot) { $buttons += @{ Name = 'restart'; Text = 'Restart now'; Kind = 'primary' }; $buttons += @{ Name = 'later'; Text = 'Later'; Kind = 'link' } }
+    if ($fail -gt 0) { $buttons += @{ Name = 'retry'; Text = 'Retry failed ones'; Kind = $(if ($needReboot) { 'link' } else { 'primary' }) } }
+    # a restart is always on offer once something was installed (strongly suggested when needed)
+    if (-not $needReboot -and @($results).Count -gt 0) { $buttons += @{ Name = 'restart'; Text = 'Restart computer'; Kind = 'link' } }
+    if (-not $needReboot -and $fail -eq 0) { $buttons += @{ Name = 'rescan'; Text = 'Scan again'; Kind = 'link' } }
+    if (@($results).Count -eq 0) { Set-Banner 'good' 'Nothing needs to be installed' @() } else { Set-Banner $mode $text $buttons }
     $script:progress.MarqueeAnimationSpeed = 0; $script:progress.Style = 'Continuous'; $script:progress.Value = 0
     Show-View 'updates'
     Update-SelectionUi
@@ -456,7 +458,7 @@ function New-MainForm {
     # --- header: name + this PC (the one thing that says "I know your machine") ---
     $header = New-Object Windows.Forms.Panel; $header.Dock = 'Top'; $header.Height = 56; $header.BackColor = [Drawing.Color]::White
     $title = New-Object Windows.Forms.Label; $title.Text = 'TierS Driver Manage'; $title.Font = New-Font 15 $true; $title.ForeColor = $T.Navy; $title.AutoSize = $true; $title.Location = New-Object Drawing.Point(68, 14)
-    $script:lblMachine = New-Object Windows.Forms.Label; $script:lblMachine.Text = 'กำลังอ่านข้อมูลเครื่อง...'; $script:lblMachine.Font = New-Font 9.5; $script:lblMachine.ForeColor = $T.Muted
+    $script:lblMachine = New-Object Windows.Forms.Label; $script:lblMachine.Text = 'Reading system information...'; $script:lblMachine.Font = New-Font 9.5; $script:lblMachine.ForeColor = $T.Muted
     $script:lblMachine.AutoSize = $false; $script:lblMachine.AutoEllipsis = $true; $script:lblMachine.TextAlign = 'MiddleLeft'
     $script:lblMachine.SetBounds(340, 16, 660, 24); $script:lblMachine.Anchor = 'Top,Left'
     $header.Controls.AddRange(@($title, $script:lblMachine))
@@ -472,16 +474,16 @@ function New-MainForm {
     } catch { }
     # --- action bar: ONE primary button, live status, thin progress ---
     $actions = New-Object Windows.Forms.Panel; $actions.Dock = 'Top'; $actions.Height = 84; $actions.BackColor = [Drawing.Color]::White
-    $script:btnScan = New-Object TierButton; $script:btnScan.Text = 'สแกนไดรเวอร์'; $script:btnScan.Size = New-Object Drawing.Size(230, 48); $script:btnScan.Location = New-Object Drawing.Point(20, 16)
+    $script:btnScan = New-Object TierButton; $script:btnScan.Text = 'Scan drivers'; $script:btnScan.Size = New-Object Drawing.Size(230, 48); $script:btnScan.Location = New-Object Drawing.Point(20, 16)
     Set-ButtonStyle $script:btnScan 'primary'
     $script:picStatus = New-Object Windows.Forms.PictureBox; $script:picStatus.Size = New-Object Drawing.Size(22, 22); $script:picStatus.Location = New-Object Drawing.Point(270, 29); $script:picStatus.SizeMode = 'CenterImage'; $script:picStatus.BackColor = [Drawing.Color]::White
     $script:lblStatus = New-Object Windows.Forms.Label; $script:lblStatus.Location = New-Object Drawing.Point(298, 14); $script:lblStatus.Size = New-Object Drawing.Size(560, 52); $script:lblStatus.Anchor = 'Top,Left'
     $script:lblStatus.Font = New-Font 10.5; $script:lblStatus.ForeColor = $T.Muted; $script:lblStatus.TextAlign = 'MiddleLeft'; $script:lblStatus.AutoEllipsis = $false
-    $script:lblStatus.Text = 'พร้อมสแกน'
+    $script:lblStatus.Text = 'Ready to scan'
     $script:lblStatus.Add_TextChanged({
         $t = $script:Theme; $x = $script:lblStatus.Text
-        if ($x -like 'หยุด*') { $script:lblStatus.ForeColor = $t.Bad; $script:picStatus.Image = (New-Icon 'cross' $t.Bad 20) }
-        elseif ($x -like 'เสร็จ*' -or $x -like 'สแกนเสร็จ*') { $script:lblStatus.ForeColor = $t.Good; $script:picStatus.Image = (New-Icon 'check' $t.Good 20) }
+        if ($x -like 'Stopped*') { $script:lblStatus.ForeColor = $t.Bad; $script:picStatus.Image = (New-Icon 'cross' $t.Bad 20) }
+        elseif ($x -like 'Done*' -or $x -like 'Scan complete*') { $script:lblStatus.ForeColor = $t.Good; $script:picStatus.Image = (New-Icon 'check' $t.Good 20) }
         elseif ($script:isBusy) { $script:lblStatus.ForeColor = $t.Accent; $script:picStatus.Image = (New-Icon 'active' $t.Accent 20) }
         else { $script:lblStatus.ForeColor = $t.Muted; $script:picStatus.Image = $null }
         # tell screen readers the status changed (NameChange is raised through a protected method)
@@ -496,7 +498,7 @@ function New-MainForm {
     # --- summary strip: three clickable facts, each with a drawn icon and words (not color alone) ---
     $strip = New-Object Windows.Forms.Panel; $strip.Dock = 'Top'; $strip.Height = 44; $strip.BackColor = $T.Page
     $x = 12
-    foreach ($spec in @(@('sumInstalled', 'ยังไม่ได้สแกน', 270, 'installed'), @('sumUpdates', '', 230, 'updates'), @('sumProblems', '', 360, 'log'))) {
+    foreach ($spec in @(@('sumInstalled', 'Not scanned yet', 270, 'installed'), @('sumUpdates', '', 230, 'updates'), @('sumProblems', '', 360, 'log'))) {
         # flat Button so the icon sits before the text (Label draws both at the same spot) and Enter/Space/focus work natively
         $l = New-Object Windows.Forms.Button
         $l.Name = $spec[3]; $l.Text = $spec[1]; $l.Font = New-Font 10.5 $true; $l.ForeColor = $T.Text; $l.Size = New-Object Drawing.Size($spec[2], 30); $l.Location = New-Object Drawing.Point($x, 7)
@@ -509,13 +511,13 @@ function New-MainForm {
         $strip.Controls.Add($l); Set-Variable -Scope Script -Name $spec[0] -Value $l
         $x += $spec[2] + 8
     }
-    $script:sumInstalled.AccessibleName = 'จำนวนไดรเวอร์ในเครื่อง เปิดดูรายการ'; $script:sumUpdates.AccessibleName = 'จำนวนไดรเวอร์ที่มีอัปเดต เปิดดูรายการ'; $script:sumProblems.AccessibleName = 'อุปกรณ์ที่ยังไม่มีไดรเวอร์ เปิดดูในบันทึก'
+    $script:sumInstalled.AccessibleName = 'Number of drivers on this PC, open the list'; $script:sumUpdates.AccessibleName = 'Number of drivers with updates, open the list'; $script:sumProblems.AccessibleName = 'Devices without a driver, open the log'
 
     # --- view switch ---
     $views = New-Object Windows.Forms.Panel; $views.Dock = 'Top'; $views.Height = 44; $views.BackColor = $T.Page
     $script:viewBtns = @{}
     $x = 20
-    foreach ($v in @(@('updates', 'รายการอัปเดต', 140), @('installed', 'ไดรเวอร์ในเครื่อง', 160), @('log', 'บันทึกการทำงาน', 150))) {
+    foreach ($v in @(@('updates', 'Updates', 120), @('installed', 'Installed drivers', 170), @('log', 'Log', 90))) {
         $b = New-Object Windows.Forms.Button
         $b.Text = $v[1]; $b.Size = New-Object Drawing.Size($v[2], 40); $b.Location = New-Object Drawing.Point($x, 2); $x += $v[2] + 4
         $b.FlatStyle = 'Flat'; $b.FlatAppearance.BorderSize = 0; $b.BackColor = $T.Page; $b.UseVisualStyleBackColor = $false; $b.Cursor = 'Hand'
@@ -552,17 +554,17 @@ function New-MainForm {
     $pUpdates = New-Object Windows.Forms.Panel; $pUpdates.Dock = 'Fill'; $pUpdates.BackColor = [Drawing.Color]::White
     $script:grid = New-Object Windows.Forms.DataGridView
     Initialize-Grid $script:grid
-    $script:grid.ReadOnly = $false; $script:grid.AccessibleName = 'รายการไดรเวอร์ที่ควรอัปเดต'
+    $script:grid.ReadOnly = $false; $script:grid.AccessibleName = 'Driver updates list'
     $script:grid.RowTemplate.MinimumHeight = 38; $script:grid.AutoSizeRowsMode = 'AllCells'   # status text wraps instead of being cut
-    Add-GridColumns $script:grid @(@('ไดรเวอร์ / อุปกรณ์', 34, $true), @('ประเภท', 11, $true), @('แหล่งที่มา', 14, $true), @('วันที่', 12, $true), @('ขนาด', 9, $true), @('หมายเหตุ', 20, $false)) $true $true
+    Add-GridColumns $script:grid @(@('Driver / device', 31, $true), @('Type', 14, $true), @('Source', 14, $true), @('Date', 12, $true), @('Size', 9, $true), @('Notes', 20, $false)) $true $true
     $script:lblEmpty = New-Object Windows.Forms.Label; $script:lblEmpty.Dock = 'Fill'; $script:lblEmpty.TextAlign = 'MiddleCenter'; $script:lblEmpty.Font = New-Font 12; $script:lblEmpty.BackColor = [Drawing.Color]::White
     $pUpdates.Controls.Add($script:grid); $pUpdates.Controls.Add($script:lblEmpty)
 
     $pInstalled = New-Object Windows.Forms.Panel; $pInstalled.Dock = 'Fill'; $pInstalled.BackColor = [Drawing.Color]::White
     $script:invGrid = New-Object Windows.Forms.DataGridView
     Initialize-Grid $script:invGrid
-    $script:invGrid.ReadOnly = $true; $script:invGrid.AccessibleName = 'ไดรเวอร์ที่ติดตั้งอยู่ในเครื่อง'
-    Add-GridColumns $script:invGrid @(@('อุปกรณ์', 33, $true), @('ประเภท', 12, $true), @('ผู้ผลิต', 16, $true), @('เวอร์ชัน', 14, $true), @('วันที่ไดรเวอร์', 13, $true), @('สถานะ', 12, $true)) $false $true
+    $script:invGrid.ReadOnly = $true; $script:invGrid.AccessibleName = 'Installed drivers on this PC'
+    Add-GridColumns $script:invGrid @(@('Device', 33, $true), @('Type', 12, $true), @('Manufacturer', 16, $true), @('Version', 14, $true), @('Driver date', 13, $true), @('Status', 12, $true)) $false $true
     $pInstalled.Controls.Add($script:invGrid)
 
     $pLog = New-Object Windows.Forms.Panel; $pLog.Dock = 'Fill'; $pLog.BackColor = [Drawing.Color]::White; $pLog.Padding = New-Object Windows.Forms.Padding(16)
@@ -578,10 +580,10 @@ function New-MainForm {
     # --- footer: selection facts and the install action (only while there is something to install) ---
     $footer = New-Object Windows.Forms.Panel; $footer.Dock = 'Bottom'; $footer.Height = 76; $footer.BackColor = [Drawing.Color]::White
     $footer.Add_Paint({ param($s, $e) $pen = New-Object Drawing.Pen($script:Theme.Border); $e.Graphics.DrawLine($pen, 0, 0, $s.Width, 0); $pen.Dispose() })
-    $script:chkAll = New-Object Windows.Forms.CheckBox; $script:chkAll.Text = 'เลือกทั้งหมด'; $script:chkAll.AutoSize = $true; $script:chkAll.Location = New-Object Drawing.Point(20, 12); $script:chkAll.ForeColor = $T.Text; $script:chkAll.Visible = $false
+    $script:chkAll = New-Object Windows.Forms.CheckBox; $script:chkAll.Text = 'Select all'; $script:chkAll.AutoSize = $true; $script:chkAll.Location = New-Object Drawing.Point(20, 12); $script:chkAll.ForeColor = $T.Text; $script:chkAll.Visible = $false
     $script:lblSel = New-Object Windows.Forms.Label; $script:lblSel.AutoSize = $true; $script:lblSel.Location = New-Object Drawing.Point(150, 14); $script:lblSel.ForeColor = $T.Muted; $script:lblSel.Visible = $false
-    $script:chkRestore = New-Object Windows.Forms.CheckBox; $script:chkRestore.Text = 'สร้างจุดคืนค่าระบบก่อนติดตั้ง (ย้อนกลับได้ถ้ามีปัญหา)'; $script:chkRestore.AutoSize = $true; $script:chkRestore.Location = New-Object Drawing.Point(20, 42); $script:chkRestore.ForeColor = $T.Text; $script:chkRestore.Checked = $true
-    $script:btnInstall = New-Object TierButton; $script:btnInstall.Text = 'ติดตั้ง'; $script:btnInstall.Size = New-Object Drawing.Size(240, 48); $script:btnInstall.Anchor = 'Top,Right'; $script:btnInstall.Visible = $false
+    $script:chkRestore = New-Object Windows.Forms.CheckBox; $script:chkRestore.Text = 'Create a system restore point before installing (lets you roll back if something goes wrong)'; $script:chkRestore.AutoSize = $true; $script:chkRestore.Location = New-Object Drawing.Point(20, 42); $script:chkRestore.ForeColor = $T.Text; $script:chkRestore.Checked = $true
+    $script:btnInstall = New-Object TierButton; $script:btnInstall.Text = 'Install'; $script:btnInstall.Size = New-Object Drawing.Size(240, 48); $script:btnInstall.Anchor = 'Top,Right'; $script:btnInstall.Visible = $false
     Set-ButtonStyle $script:btnInstall 'primary'; $script:btnInstall.Enabled = $false
     $footer.Controls.AddRange(@($script:chkAll, $script:lblSel, $script:chkRestore, $script:btnInstall))
     $installBtn = $script:btnInstall
@@ -600,11 +602,11 @@ function New-MainForm {
     $script:grid.TabIndex = 0; $script:invGrid.TabIndex = 0
     $script:chkAll.TabIndex = 0; $script:chkRestore.TabIndex = 1; $script:btnInstall.TabIndex = 2
     $script:progress.TabStop = $false; $script:picStatus.TabStop = $false; $script:lblStatus.TabStop = $false
-    $script:lblStatus.AccessibleName = 'สถานะการทำงาน'; $script:progress.AccessibleName = 'ความคืบหน้า'   # buttons use their visible text as their name
-    $script:toolTip.SetToolTip($script:chkRestore, "จุดคืนค่าระบบช่วยย้อนเครื่องกลับถ้าไดรเวอร์ใหม่มีปัญหา`r`nWindows สร้างได้ 1 ครั้งต่อ 24 ชั่วโมง ถ้าสร้างไม่ได้ โปรแกรมจะบันทึกไว้และติดตั้งต่อ")
-    $script:toolTip.SetToolTip($script:btnScan, 'F5  หรือ  Alt+S'); $script:toolTip.SetToolTip($script:btnInstall, 'Alt+I')
+    $script:lblStatus.AccessibleName = 'Status'; $script:progress.AccessibleName = 'Progress'   # buttons use their visible text as their name
+    $script:toolTip.SetToolTip($script:chkRestore, "A restore point lets you roll the PC back if a new driver causes problems.`r`nWindows allows one every 24 hours; if it cannot be created the program logs it and continues.")
+    $script:toolTip.SetToolTip($script:btnScan, 'F5 or Alt+S'); $script:toolTip.SetToolTip($script:btnInstall, 'Alt+I')
     $script:progress.Visible = $false
-    $script:chkAll.AccessibleName = 'เลือกทุกรายการ'; $script:chkRestore.AccessibleName = 'สร้างจุดคืนค่าระบบก่อนติดตั้ง'; $script:txtLog.AccessibleName = 'บันทึกการทำงาน'
+    $script:chkAll.AccessibleName = 'Select all items'; $script:chkRestore.AccessibleName = 'Create a system restore point before installing'; $script:txtLog.AccessibleName = 'Log'
 
     $script:timer = New-Object Windows.Forms.Timer
     $script:timer.Interval = 400
