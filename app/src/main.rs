@@ -32,13 +32,29 @@ fn single_instance(wait: bool) -> Option<windows::Win32::Foundation::HANDLE> {
     None
 }
 
+fn note(msg: &str) {
+    use windows::core::{w, HSTRING};
+    use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
+    unsafe { MessageBoxW(None, &HSTRING::from(msg), w!("TierS Driver Manage"), MB_OK | MB_ICONINFORMATION); }
+}
+
+fn log_error(msg: &str) {
+    let dir = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir).join("TierS Driver Manage");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join("error.log"), msg);
+    use windows::core::{w, HSTRING};
+    use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+    unsafe { MessageBoxW(None, &HSTRING::from(format!("{msg}\n\n(saved to {})", dir.join("error.log").display())), w!("TierS Driver Manage"), MB_OK | MB_ICONERROR); }
+}
+
 fn main() {
+    std::panic::set_hook(Box::new(|i| log_error(&format!("Crash: {i}"))));
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--diag") { diag(); return; }
     let wait = args.iter().any(|a| a == "--wait-for-previous");
     let shot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(std::path::PathBuf::from);
     let demo = args.iter().position(|a| a == "--demo").and_then(|i| args.get(i + 1)).cloned();
-    let _guard = if shot.is_some() { None } else { match single_instance(wait) { Some(h) => Some(h), None => return } };
+    let _guard = if shot.is_some() { None } else { match single_instance(wait) { Some(h) => Some(h), None => { note("TierS Driver Manage is already running (look in the taskbar or Task Manager). Close the other copy first."); return } } };
 
     let dir = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir).join("TierS Driver Manage");
     let _ = std::fs::create_dir_all(&dir);
@@ -51,11 +67,13 @@ fn main() {
     let mut vp = eframe::egui::ViewportBuilder::default().with_title("TierS Driver Manage").with_inner_size([1100.0, 720.0]).with_min_inner_size([900.0, 560.0]);
     if let Some(i) = icon { vp = vp.with_icon(i); }
     let opts = eframe::NativeOptions { viewport: vp, ..Default::default() };
-    let _ = eframe::run_native("TierS Driver Manage", opts, Box::new(move |cc| {
+    if let Err(e) = eframe::run_native("TierS Driver Manage", opts, Box::new(move |cc| {
         let mut app = ui::App::new(cc, cfg, shot);
         if let Some(d) = demo { app.demo(&d); }
         Ok(Box::new(app))
-    }));
+    })) { log_error(&format!("Could not open the window: {e}")); }
 }
 
 fn egui_icon(r: image::RgbaImage) -> eframe::egui::IconData { let (w, h) = (r.width(), r.height()); eframe::egui::IconData { rgba: r.into_raw(), width: w, height: h } }
+
+
