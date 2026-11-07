@@ -28,8 +28,8 @@ if (-not (Test-UpdateSignature $m ([IO.File]::ReadAllText((Join-Path $src 'Updat
 if ($NoUpload) { "Built revision $rev in $dist (not uploaded)."; return }
 $gh = (Get-Command gh -ErrorAction SilentlyContinue).Source; if (-not $gh) { throw 'GitHub CLI (gh) is not installed or not on PATH' }
 # a prerelease keeps the "latest release" (used by program updates) pointing at the program
-& $gh release view catalog --repo $repo 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) { & $gh release create catalog --repo $repo --prerelease --title 'Driver catalog' --notes 'Signed online driver catalog (fetched by the program at every scan).' }
+$ErrorActionPreference = 'Continue'; & $gh release view catalog --repo $repo 2>$null | Out-Null; $exists = ($LASTEXITCODE -eq 0); $ErrorActionPreference = 'Stop'
+if (-not $exists) { & $gh release create catalog --repo $repo --prerelease --title 'Driver catalog' --notes 'Signed online driver catalog (fetched by the program at every scan).' }
 & $gh release upload catalog $file $manifest --repo $repo --clobber
 Set-Content $revFile $rev
 "Published catalog revision $rev to $repo"
