@@ -420,9 +420,11 @@ function Install-AppUpdate($m, $installDir, $workDir, $oldVersion, $localZip = $
         [void](Test-FileSha256 $zip $m.sha256)
         $new = Join-Path $workDir 'new'
         Expand-SafeZip $zip $new
-        $files = @(Get-ChildItem $new -Recurse -File)
+        # (compare by listing, not by path text: %TEMP% can be an 8.3 short path while the listing returns long names)
+        $sub = @(Get-ChildItem $new -Directory)
+        if ($sub.Count -gt 0) { throw "ไฟล์อัปเดตมีโฟลเดอร์ย่อย: $($sub[0].Name)" }
+        $files = @(Get-ChildItem $new -File)
         foreach ($f in $files) {
-            if ($f.DirectoryName.TrimEnd('\') -ne $new.TrimEnd('\')) { throw "ไฟล์อัปเดตมีโฟลเดอร์ย่อย: $($f.FullName.Substring($new.Length))" }
             if ($UpdateAllowedExt -notcontains $f.Extension.ToLowerInvariant()) { throw "ไฟล์อัปเดตมีไฟล์ชนิดที่ไม่อนุญาต: $($f.Name)" }
         }
         foreach ($must in 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1') { if (-not (Test-Path (Join-Path $new $must))) { throw "ไฟล์อัปเดตไม่มี $must" } }

@@ -848,6 +848,17 @@ if ($SelfTest) {
     Check 'mirror: the publisher''s own release URL is allowed' (-not $(try { Assert-AllowedUrl 'https://github.com/kungzazakub-png/tiers-driver-manage/releases/download/drivers/x.exe'; $false } catch { $true }))
     Check 'mirror: another GitHub repository is NOT allowed' $(try { Assert-AllowedUrl 'https://github.com/someone/else/releases/download/v1/x.exe'; $false } catch { $true })
     Remove-Item $tc -Recurse -Force -ErrorAction SilentlyContinue
+    # 5f) update apply must work when %TEMP% is an 8.3 short path (a real PC failed with "folder inside the update" because of this)
+    $tl = Join-Path $env:TEMP ('ds_long_directory_name_' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory $tl | Out-Null
+    $shortRoot = (New-Object -ComObject Scripting.FileSystemObject).GetFolder($tl).ShortPath
+    $zipS = Join-Path $tl 's.zip'; $srcS = Join-Path $tl 'src'; New-Item -ItemType Directory $srcS | Out-Null
+    foreach ($k in 'DriverScan.ps1', 'DriverCore.ps1', 'DriverUI.ps1') { Set-Content (Join-Path $srcS $k) '# new' }
+    Compress-Archive -Path (Join-Path $srcS '*') -DestinationPath $zipS
+    $instS = Join-Path $tl 'inst'; New-Item -ItemType Directory $instS | Out-Null
+    $manS = [pscustomobject]@{ version = '9.0.0'; url = 'https://github.com/o/r/releases/download/v/a.zip'; sha256 = (Get-FileHash $zipS -Algorithm SHA256).Hash }
+    $rs = Install-AppUpdate $manS $instS (Join-Path $shortRoot 'work') '1.0.0' $zipS
+    Check ("update apply: works with a short (8.3) work path [$($shortRoot -ne $tl)]: " + $rs.Message) $rs.Success
+    Remove-Item $tl -Recurse -Force -ErrorAction SilentlyContinue
     # 6) full GUI flow in DryRun: scan -> review -> install -> results
     [Windows.Forms.Application]::EnableVisualStyles()
     $script:DryRun = $true
@@ -878,6 +889,7 @@ if ($SelfTest) {
     Check 'gui: all-ok ending offers scan again, no restart' ((@($script:bannerBtns | Where-Object Visible | ForEach-Object Name) -join ',') -eq 'rescan')
     Check 'gui: summary chip reflects the run, not the old scan' ($script:sumUpdates.Text -match '2')
     Check 'gui: progress bar hidden when idle' (-not $script:progress.Visible)
+    [Windows.Forms.Application]::DoEvents(); $f.PerformLayout()   # Top values are only final after layout
     $tops = @($f.Controls | Sort-Object TabIndex | ForEach-Object { $_.Top })
     Check 'gui: tab order follows the visual order top to bottom' (($tops -join ',') -eq (($tops | Sort-Object) -join ','))
     Check 'plain reason: SHA failure is explained in Thai' ((Get-PlainReason 'SHA-256 ไม่ตรง') -match 'ไม่สมบูรณ์')
