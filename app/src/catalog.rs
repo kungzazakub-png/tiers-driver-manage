@@ -1,4 +1,4 @@
-//! Driver catalog entries and the rules that decide whether an entry applies to an installed device.
+﻿//! Driver catalog entries and the rules that decide whether an entry applies to an installed device.
 use crate::policy;
 use crate::version::Ver;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -46,6 +46,18 @@ pub fn parse_catalog(text: &str) -> Result<Vec<CatalogEntry>, String> {
 pub struct Date { pub y: i32, pub m: u32, pub d: u32 }
 impl Date {
     pub fn iso(&self) -> String { format!("{:04}-{:02}-{:02}", self.y, self.m, self.d) }
+    pub fn today() -> Date {
+        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as i64;
+        let z = secs / 86_400 + 719_468;
+        let era = z / 146_097; let doe = z - era * 146_097;
+        let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        let mp = (5 * doy + 2) / 153;
+        let m = if mp < 10 { mp + 3 } else { mp - 9 };
+        Date { y: (yoe + era * 400 + if m <= 2 { 1 } else { 0 }) as i32, m: m as u32, d: (doy - (153 * mp + 2) / 5 + 1) as u32 }
+    }
+    /// Whole days from self to later (approximate: 365.25-day years are good enough for "older than N years").
+    pub fn years_until(&self, later: Date) -> f64 { ((later.y - self.y) as f64) + ((later.m as f64 - self.m as f64) / 12.0) }
     /// "2026-01-12" or "2026-01-12T00:00:00"
     pub fn parse_iso(s: &str) -> Option<Date> {
         let mut it = s.get(..10)?.split('-');
@@ -252,3 +264,4 @@ mod tests {
         assert_eq!(names(dev("Intel(R) Arc(TM) A770 Graphics", "DISPLAY", "32.0.101.9175", &["PCI\\VEN_8086&DEV_56A0&SUBSYS_0&REV_08"])), "");
     }
 }
+
