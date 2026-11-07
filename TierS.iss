@@ -52,7 +52,7 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\TierS Driver Manage.exe"; Ic
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\TierS Driver Manage.exe"; IconFilename: "{app}\TierS.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\TierS Driver Manage.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\TierS Driver Manage.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent runascurrentuser
 
 [InstallDelete]
 ; leftovers from the earlier one-file installer / pre-rename versions
