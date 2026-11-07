@@ -1,4 +1,5 @@
 ﻿//! TierS Driver Manage - engine. The program is a port of the PowerShell version; behaviour and messages are kept the same.
+pub mod backup;
 pub mod catalog;
 pub mod crypto;
 pub mod http;
@@ -11,6 +12,7 @@ pub mod trust;
 pub mod update;
 pub mod version;
 pub mod winsys;
+
 
 
 
