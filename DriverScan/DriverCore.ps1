@@ -77,9 +77,14 @@ function Find-CatalogUpdates($installed, $catalog, $hostInfo = (Get-HostInfo)) {
     return $found
 }
 
+# The publisher's own mirror (GitHub release assets of this one repository, NOT all of github.com). Drivers whose license or download form
+# prevents a direct vendor link are stored there; they are still hash-pinned and signature-checked like every other download.
+$MirrorPrefixes = @('https://github.com/kungzazakub-png/tiers-driver-manage/releases/download/')
+
 function Assert-AllowedUrl($url, $hosts = $BuiltInHosts) {
     $u = [uri]$url
     if ($u.Scheme -ne 'https') { throw "ไม่อนุญาตลิงก์ที่ไม่ใช่ https: $url" }
+    if ([object]::ReferenceEquals($hosts, $BuiltInHosts)) { foreach ($pre in $MirrorPrefixes) { if ($url.StartsWith($pre, [StringComparison]::OrdinalIgnoreCase)) { return } } }
     $ok = $false
     foreach ($h in @($hosts | Where-Object { $_ })) { if ($u.Host -eq $h -or $u.Host.EndsWith('.' + $h)) { $ok = $true } }
     if (-not $ok) { throw "โฮสต์ $($u.Host) ไม่อยู่ในรายการที่อนุญาตของโปรแกรม" }
@@ -440,4 +445,60 @@ function Install-AppUpdate($m, $installDir, $workDir, $oldVersion, $localZip = $
         foreach ($n in $touched) { $b = if ($backup) { Join-Path $backup $n } else { $null }; if ($b -and (Test-Path $b)) { Copy-Item $b (Join-Path $installDir $n) -Force } }
     }
     return $res
+}
+
+
+# ---------- online catalog: the signed driverdb.json published on GitHub (release tag "catalog") ----------
+# Same trust model as program updates: a manifest signed with the publisher's private key covers revision + file hash + url.
+# An online catalog can add drivers but can never widen the download-host list (that stays hard-coded above).
+function Test-CatalogEntry($c) {
+    if (-not $c.name) { return 'ไม่มีชื่อ' }
+    if (-not (ConvertTo-Ver $c.version)) { return "เวอร์ชันไม่ถูกต้อง ($($c.version))" }
+    if (-not @($c.match).Count -or -not (@($c.match) | Where-Object { $_ }).Count) { return 'ไม่มี match' }
+    if ($c.type -notin 'installer', 'inf-zip') { return "type ไม่รู้จัก ($($c.type))" }
+    if ([string]$c.sha256 -notmatch '^[0-9a-fA-F]{64}$') { return 'sha256 ไม่ถูกต้อง' }
+    try { Assert-AllowedUrl $c.url } catch { return $_.Exception.Message }
+    if ($c.type -eq 'installer' -and (-not $c.signer -or -not $c.silentArgs)) { return 'installer ต้องมี signer และ silentArgs' }
+    return $null
+}
+
+# Returns @{ Updated; Revision; Count }. Throws when the online catalog is not trustworthy (the old cache stays untouched).
+# $fetch is for tests: { param($url) -> byte[] }.
+function Get-OnlineCatalog($repo, $publicKeyXml, $cachePath, $fetch = $null) {
+    if (-not $fetch) {
+        $fetch = { param($u)
+            Assert-AllowedUrl $u $UpdateHosts
+            $tmp = [IO.Path]::GetTempFileName()
+            try { Invoke-WebRequest -Uri $u -OutFile $tmp -UseBasicParsing -TimeoutSec 60; return ,[IO.File]::ReadAllBytes($tmp) } finally { Remove-Item $tmp -ErrorAction SilentlyContinue }
+        }
+    }
+    if (-not $publicKeyXml -or $repo -notmatch '^[\w\.\-]+/[\w\.\-]+$') { return $null }
+    $m = [Text.Encoding]::UTF8.GetString((& $fetch "https://github.com/$repo/releases/download/catalog/catalog.json")).TrimStart([char]0xFEFF) | ConvertFrom-Json
+    $rev = [int](([string]$m.version) -replace '^1\.', '')
+    $curRev = 0
+    if (Test-Path $cachePath) { try { $curRev = [int]((Get-Content $cachePath -Raw -Encoding UTF8 | ConvertFrom-Json).revision) } catch {} }
+    if ($rev -le $curRev) { return [pscustomobject]@{ Updated = $false; Revision = $curRev; Count = 0 } }
+    if (-not (Test-UpdateSignature $m $publicKeyXml)) { throw 'ลายเซ็นของแค็ตตาล็อกออนไลน์ไม่ถูกต้อง จึงไม่ใช้ (ไฟล์อาจถูกแก้ไข)' }
+    Assert-AllowedUrl $m.url $UpdateHosts
+    $bytes = & $fetch $m.url
+    $got = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-', '')
+    if ($got -ne ([string]$m.sha256).ToUpperInvariant()) { throw 'ค่า SHA-256 ของแค็ตตาล็อกออนไลน์ไม่ตรง จึงไม่ใช้' }
+    $doc = [Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF) | ConvertFrom-Json
+    $entries = @(@($doc.drivers) | Where-Object { $_.name })
+    foreach ($e in $entries) { $why = Test-CatalogEntry $e; if ($why) { throw "รายการ '$($e.name)' ในแค็ตตาล็อกออนไลน์ไม่ผ่านการตรวจ: $why" } }
+    $copy = [pscustomobject]@{ revision = $rev; drivers = $entries }
+    $tmpOut = $cachePath + '.new'
+    [IO.File]::WriteAllText($tmpOut, ($copy | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding($true)))
+    Move-Item $tmpOut $cachePath -Force
+    return [pscustomobject]@{ Updated = $true; Revision = $rev; Count = $entries.Count }
+}
+
+# Local file first, then the online cache; an online entry replaces a local one with the same name (the online one is the maintained one).
+function Read-AllCatalogs($localPath, $onlinePath) {
+    $byName = [ordered]@{}
+    foreach ($c in @(Read-DriverCatalog $localPath)) { $byName[$c.name] = $c }
+    if ($onlinePath -and (Test-Path $onlinePath)) {
+        foreach ($c in @(Read-DriverCatalog $onlinePath)) { $byName[$c.name] = $c }
+    }
+    return @($byName.Values)
 }

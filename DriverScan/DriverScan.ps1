@@ -169,9 +169,13 @@ $ScanBlock = {
         } catch {}
 
         $items = @()
-        $state.Status = 'กำลังเทียบกับแค็ตตาล็อกไดรเวอร์ของคุณ...'
+        $state.Status = 'กำลังตรวจแค็ตตาล็อกไดรเวอร์ออนไลน์และเทียบกับเครื่องนี้...'
         try {
-            $cat = @(Read-DriverCatalog $state.CatalogPath)
+            try {
+                $oc = Get-OnlineCatalog $state.UpdateRepo $state.PublicKey $state.OnlineCatalogPath
+                if ($oc -and $oc.Updated) { $state.Log += "แค็ตตาล็อกออนไลน์: อัปเดตเป็นรุ่นที่ $($oc.Revision) ($($oc.Count) รายการ)`r`n" }
+            } catch { $state.Log += "แค็ตตาล็อกออนไลน์: $($_.Exception.Message) (ใช้รุ่นที่เก็บไว้เดิม)`r`n" }
+            $cat = @(Read-AllCatalogs $state.CatalogPath $state.OnlineCatalogPath)
             $items += @(Find-CatalogUpdates $installed $cat)
             $state.Log += "แค็ตตาล็อก: $($cat.Count) รายการ, ตรงกับเครื่องนี้และใหม่กว่า $(@($items).Count) รายการ`r`n"
         } catch {
@@ -329,7 +333,7 @@ function New-State {
     return [hashtable]::Synchronized(@{
         Status = ''; Done = $false; Error = $null; Items = @(); Inventory = @(); Log = ''; Reboot = $false
         Ids = @(); CatalogItems = @(); RestorePoint = $false; Missing = @(); Installed = 0; BlockCatalog = ($script:FolderWritable -and $script:RequireProtectedFolder)
-        CatalogPath = $script:CatalogPath
+        CatalogPath = $script:CatalogPath; OnlineCatalogPath = (Join-Path $PSScriptRoot 'driverdb.online.json'); UpdateRepo = $script:UpdateRepo; PublicKey = $script:UpdatePublicKey
         ItemStatus = [hashtable]::Synchronized(@{}); ItemReason = [hashtable]::Synchronized(@{}); Cancel = $false
     })
 }
@@ -811,6 +815,39 @@ if ($SelfTest) {
     Check 'catalog: 10th gen UHD 630 (legacy) gets no offer' ((& $offerNames (& $gpu 'Intel(R) UHD Graphics 630' 'PCI\VEN_8086&DEV_9BC8&SUBSYS_00000000&REV_05' '27.20.100.8000')) -eq '')
     Check 'catalog: an up-to-date Intel graphics driver gets no offer' ((& $offerNames (& $gpu 'Intel(R) Arc(TM) A770 Graphics' 'PCI\VEN_8086&DEV_56A0&SUBSYS_00000000&REV_08' '32.0.101.9175')) -eq '')
     Check 'catalog: every shipped installer entry has https url, sha256, signer and silent switches' (@($shipped | Where-Object { $_.type -eq 'installer' -and ($_.url -notmatch '^https://' -or $_.sha256 -notmatch '^[0-9A-F]{64}$' -or -not $_.signer -or -not $_.silentArgs) }).Count -eq 0)
+    # 5e) signed online catalog + publisher mirror
+    $rk = New-Object Security.Cryptography.RSACryptoServiceProvider(2048); $rpub = $rk.ToXmlString($false); $rpriv = $rk.ToXmlString($true)
+    $tc = Join-Path $env:TEMP ('ds_cat_' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory $tc | Out-Null
+    $goodEntry = [ordered]@{ name = 'Mirror Test Driver'; version = '2.0.0.0'; match = @('PCI\VEN_1234&DEV_*'); type = 'installer'; url = 'https://github.com/kungzazakub-png/tiers-driver-manage/releases/download/drivers/x.exe'; sha256 = ('A' * 64); signer = 'Test'; silentArgs = '/s'; class = 'NET' }
+    $mkCat = { param($rev, $entries, $key) $json = ([pscustomobject]@{ version = 1; drivers = @($entries) } | ConvertTo-Json -Depth 6); $b = (New-Object Text.UTF8Encoding($false)).GetBytes($json)
+        $m = [pscustomobject]@{ version = "1.$rev"; url = 'https://github.com/o/r/releases/download/catalog/driverdb.json'; sha256 = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($b)).Replace('-', ''); signature = '' }
+        $m.signature = New-UpdateSignature $m $key
+        @{ Manifest = (New-Object Text.UTF8Encoding($false)).GetBytes(($m | ConvertTo-Json)); File = $b } }
+    $fetchFor = { param($c) { param($u) if ($u -like '*catalog.json') { ,$c.Manifest } else { ,$c.File } }.GetNewClosure() }
+    $cache = Join-Path $tc 'online.json'
+    $c1 = & $mkCat 1 @($goodEntry) $rpriv
+    $r = Get-OnlineCatalog 'o/r' $rpub $cache (& $fetchFor $c1)
+    Check 'online catalog: signed revision 1 is saved to the cache' ($r.Updated -and $r.Revision -eq 1 -and (Test-Path $cache))
+    $r = Get-OnlineCatalog 'o/r' $rpub $cache (& $fetchFor $c1)
+    Check 'online catalog: same revision is not downloaded again' (-not $r.Updated)
+    $c2 = & $mkCat 2 @($goodEntry) (New-Object Security.Cryptography.RSACryptoServiceProvider(2048)).ToXmlString($true)
+    $threw = $false; try { [void](Get-OnlineCatalog 'o/r' $rpub $cache (& $fetchFor $c2)) } catch { $threw = $true }
+    Check 'online catalog: signed with another key is refused and the cache stays' ($threw -and (Get-Content $cache -Raw) -match '"revision":\s*1')
+    $c3 = & $mkCat 3 @($goodEntry) $rpriv; $c3.File[5] = [byte]($c3.File[5] -bxor 1)
+    $threw = $false; try { [void](Get-OnlineCatalog 'o/r' $rpub $cache (& $fetchFor $c3)) } catch { $threw = $true }
+    Check 'online catalog: file changed after signing is refused' $threw
+    $badEntry = [ordered]@{} + $goodEntry; $badEntry['url'] = 'https://evil.example.com/x.exe'
+    $threw = $false; try { [void](Get-OnlineCatalog 'o/r' $rpub $cache (& $fetchFor (& $mkCat 4 @($goodEntry, $badEntry) $rpriv))) } catch { $threw = $true }
+    Check 'online catalog: an entry pointing outside the allowed hosts rejects the whole catalog' ($threw -and (Get-Content $cache -Raw) -match '"revision":\s*1')
+    $threw = $false; $noHash = [ordered]@{} + $goodEntry; $noHash['sha256'] = ''
+    try { [void](Get-OnlineCatalog 'o/r' $rpub $cache (& $fetchFor (& $mkCat 5 @($noHash) $rpriv))) } catch { $threw = $true }
+    Check 'online catalog: an entry without sha256 rejects the whole catalog' $threw
+    $localCat = Join-Path $tc 'local.json'; Set-Content $localCat '{"version":1,"drivers":[{"name":"Mirror Test Driver","version":"1.0.0.0","match":["x"],"type":"installer","url":"https://downloadmirror.intel.com/1/x.exe","sha256":"B","signer":"Intel","silentArgs":"/s"},{"name":"Mine Only","version":"1.0.0.0","match":["y"],"type":"installer","url":"https://downloadmirror.intel.com/1/y.exe","sha256":"B","signer":"Intel","silentArgs":"/s"}]}'
+    $all = @(Read-AllCatalogs $localCat $cache)
+    Check 'online catalog: online entry replaces the same-named local one, local-only entries stay' ($all.Count -eq 2 -and (@($all | Where-Object name -eq 'Mirror Test Driver')[0].version -eq '2.0.0.0'))
+    Check 'mirror: the publisher''s own release URL is allowed' (-not $(try { Assert-AllowedUrl 'https://github.com/kungzazakub-png/tiers-driver-manage/releases/download/drivers/x.exe'; $false } catch { $true }))
+    Check 'mirror: another GitHub repository is NOT allowed' $(try { Assert-AllowedUrl 'https://github.com/someone/else/releases/download/v1/x.exe'; $false } catch { $true })
+    Remove-Item $tc -Recurse -Force -ErrorAction SilentlyContinue
     # 6) full GUI flow in DryRun: scan -> review -> install -> results
     [Windows.Forms.Application]::EnableVisualStyles()
     $script:DryRun = $true
