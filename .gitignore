@@ -6,3 +6,4 @@ DriverScan/.impeccable/
 DriverScan/_backup/
 driverdb.online.json
 DriverScan/driverdb.online.json
+app/target/

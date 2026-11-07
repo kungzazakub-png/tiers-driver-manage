@@ -1,0 +1,7 @@
+{
+    "version":  "1.0.5",
+    "url":  "https://github.com/kungzazakub-png/tiers-driver-manage/releases/download/v1.0.5/TierS-Driver-Manage-1.0.5.zip",
+    "sha256":  "7D0690FFAAFE0973A04CE4DFC3312C3FAEA4C4A3913ABC9591A6F67BCD5C6973",
+    "signature":  "ZCEDixYgDQvYKgsekUSj/jDvKWMKD0WncFzn8S0fUr/Sxg8uo8AMKOJYb5hz89GdnB3MgIIKWyRfA/Qbe+H2Fmb51xe+MoGxCqERaU97MtwuQFDQSVc9E6qtg6oHdYA76XCqVrDxcDRol+f9QPdsCk0yyHLHHWimehXuxW0pISwn5qzU2G2QiyEOcAn8ByVSOTX/vDNhSEwvZOVx/etHPYwHPaCxjyvh17m8wjtmLiCum9hs6nD8rkbJUxkljhildilcf96xNUXiZlpIf7a2sl2t0l9GLpGaO950O8346MYrDB3xEFDppTcjUsqk7oOBHCj7TSgcudQQZOF+5s4uQeGIgU4f/yhofxyRCzmaslNQcgJzx5vPBgsl8ZR4l0bbFl+aE+F75Lwp7GpQkXyfcmNRQp8F1COZvr2Eu5UBHRwAhJytIWpPkS++TmCM1KMANU9KIHpNweG57v49RkvGFrNFmCu+zya3iaZjrFvI9AleLFPYKRHimbqWRvCuMxba",
+    "notes":  "Update package without logo/icon so older versions (which keep them open) can update; replaces 1.0.4 whose re-uploaded zip was served stale by the GitHub CDN"
+}
