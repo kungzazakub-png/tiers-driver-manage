@@ -1,0 +1,101 @@
+name: Auto-fetch drivers for reported hardware
+
+# Runs when the report worker files an issue, or by hand with one hardware ID.
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      hwid:
+        description: 'One hardware ID, e.g. PCI\VEN_10EC&DEV_8168'
+        required: true
+
+# one run at a time: each run commits and publishes the catalog
+concurrency:
+  group: auto-fetch
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # upload driver zips, publish the catalog, commit driverdb.json
+  issues: write     # close the report with the result
+
+jobs:
+  fetch:
+    # only issues filed by the report worker's GitHub account (repository variable REPORT_BOT_LOGIN) are trusted as reports
+    if: github.event_name == 'workflow_dispatch' || (github.event.issue.user.login == vars.REPORT_BOT_LOGIN && startsWith(github.event.issue.title, 'HWID report'))
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the report (data only: the text is parsed, never executed)
+        shell: pwsh
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          MANUAL_HWID: ${{ inputs.hwid }}
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          if ($env:MANUAL_HWID) {
+            $doc = @{ v = 1; devices = @(@{ ids = @($env:MANUAL_HWID); class = ''; name = 'manual' }) } | ConvertTo-Json -Depth 5
+          } else {
+            if ($env:ISSUE_BODY -notmatch '(?s)```json\s*(\{.*?\})\s*```') { throw 'No JSON block in the report' }
+            $doc = $Matches[1]
+          }
+          [IO.File]::WriteAllText("$PWD\dist\reports.json", $doc, (New-Object Text.UTF8Encoding($false)))
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+
+      - name: Build the fetcher
+        run: cargo build --release --bin fetcher --manifest-path app/Cargo.toml
+
+      - name: Resolve hardware IDs through the Microsoft Update Catalog
+        shell: pwsh
+        run: |
+          ./app/target/release/fetcher.exe --reports dist/reports.json --catalog DriverScan/driverdb.json --out dist/pkgs --repo ${{ github.repository }} --max 10 | Tee-Object dist/result.txt
+          if ($LASTEXITCODE) { throw "fetcher failed ($LASTEXITCODE)" }
+          $zips = @(Get-Content dist/pkgs/uploaded.txt | Where-Object { $_ })
+          "ZIP_COUNT=$($zips.Count)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Mirror the packages (release "drivers")
+        if: env.ZIP_COUNT != '0'
+        shell: pwsh
+        run: |
+          gh release view drivers 2>$null | Out-Null
+          if ($LASTEXITCODE) { gh release create drivers --title 'Driver mirror' --notes 'Driver packages referenced by the catalog (SHA-256 checked by the program).' --prerelease }
+          $zips = @(Get-Content dist/pkgs/uploaded.txt | Where-Object { $_ })
+          gh release upload drivers @zips --clobber
+
+      - name: Sign and publish the catalog
+        if: env.ZIP_COUNT != '0'
+        shell: pwsh
+        env:
+          UPDATE_PRIVATE_KEY_XML: ${{ secrets.UPDATE_PRIVATE_KEY_XML }}
+        run: |
+          if (-not $env:UPDATE_PRIVATE_KEY_XML) { throw 'Secret UPDATE_PRIVATE_KEY_XML is not set' }
+          $dir = Join-Path $env:USERPROFILE '.tiers-update'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          [IO.File]::WriteAllText((Join-Path $dir 'private.xml'), $env:UPDATE_PRIVATE_KEY_XML)
+          try { ./Publish-Catalog.ps1 } finally { Remove-Item (Join-Path $dir 'private.xml') -Force -ErrorAction SilentlyContinue }
+
+      - name: Commit the catalog
+        if: env.ZIP_COUNT != '0'
+        shell: pwsh
+        run: |
+          git config user.name 'tiers-auto-fetcher'
+          git config user.email 'actions@users.noreply.github.com'
+          git add DriverScan/driverdb.json
+          git commit -m "Catalog: add drivers for reported hardware"
+          git pull --rebase
+          git push
+
+      - name: Close the report
+        if: github.event_name == 'issues' && always()
+        shell: pwsh
+        run: |
+          $r = if (Test-Path dist/result.txt) { Get-Content dist/result.txt -Raw } else { 'The run failed before a result was written.' }
+          $fence = '```'
+          gh issue close ${{ github.event.issue.number }} --comment "Result:`n$fence`n$r`n$fence"

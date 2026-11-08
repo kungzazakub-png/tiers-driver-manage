@@ -1,0 +1,13 @@
+﻿name = "tiers-hwid-report"
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+GH_REPO = "kungzazakub-png/tiers-driver-manage"
+
+# wrangler kv namespace create RATE   -> paste the id below (rate limit + 7-day dedupe; the worker also runs without it)
+# [[kv_namespaces]]
+# binding = "RATE"
+# id = "PASTE_ID_HERE"
+
+# secret: wrangler secret put GH_TOKEN   (fine-grained token, ONLY this repository, ONLY "Issues: read and write")

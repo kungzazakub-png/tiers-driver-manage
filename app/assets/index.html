@@ -258,7 +258,9 @@ function body() {
     else { c=''; t='Scan this PC for driver updates'; p='Scan finds newer drivers, you review the list, then install.\nIt takes about 1–2 minutes and needs an internet connection.'; }
     return b + `<div class="empty ${c}"><h2>${t}</h2><p>${p}</p></div>`;
   }
-  return b + `<div class="scroll">${updatesTable()}</div>`;
+  const rp = S.report.available && S.report.count > 0 ? `<div class="banner info" style="border-top:1px solid var(--border);border-bottom:0"><div class="t">${S.report.count} device(s) have no driver in any source. You can send their hardware IDs (no personal data) so a driver can be added.</div>
+    <div class="btns"><button class="btn" data-act="report" ${S.report.done||S.report.sending||S.busy?"disabled":""}>${S.report.done?"Reported":(S.report.sending?"Sending...":"Report these devices")}</button></div></div>` : "";
+  return b + `<div class="scroll">${updatesTable()}</div>` + rp;
 }
 
 function pills() {

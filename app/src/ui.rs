@@ -17,6 +17,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const REPO: &str = "kungzazakub-png/tiers-driver-manage";
 pub const PUBLIC_KEY: &str = include_str!("../assets/UpdatePublicKey.xml");
 pub const SHIPPED_CATALOG: &str = include_str!("../assets/driverdb.json");
+/// Where "Report" sends hardware IDs (the Cloudflare Worker in backend/worker). Empty = the button is hidden.
+pub const REPORT_URL: &str = "";
 pub const PAGE_HTML: &str = include_str!("../assets/index.html");
 const MAX_PASSES: u32 = 3;
 
@@ -79,6 +81,8 @@ pub struct App {
     apply_rx: Option<Receiver<Result<String, String>>>,
     updating: bool,
     power: PowerUi,
+    report_rx: Option<Receiver<Result<usize, String>>>,
+    reported: bool,
 }
 
 fn is_system_class(c: &str) -> bool { c.eq_ignore_ascii_case("SYSTEM") }
@@ -133,6 +137,7 @@ impl App {
             offers: HashMap::new(), declined: HashSet::new(), running: Running::None, scanned: false, status: "Ready to scan".into(), banner: None,
             restore_point: true, restore_done: false, log: vec![], need_reboot: false, pass: 0, auto: false, backups: vec![], selected_backup: None,
             confirm_rollback: None, update: None, update_rx: None, apply_rx: None, updating: false,
+            report_rx: None, reported: false,
             power: PowerUi { hw: None, recommended: Tier::Low, why: vec![], selected: Tier::Low, opts: Opts { restore_point: true, ..Default::default() }, preview: vec![], report: None, cmp: None, status: "Ready".into(), busy: false, confirm_reset: false, loaded: false, rx: None },
         }
     }
@@ -239,6 +244,12 @@ impl App {
                     }
                     Err(e) => { self.say(format!("[FAILED] Program update: {e}")); self.status = "Stopped: the program update failed (your existing files were not changed). See the log for details.".into(); }
                 }
+            }
+        }
+        if let Some(rx) = &self.report_rx {
+            if let Ok(r) = rx.try_recv() {
+                self.report_rx = None;
+                match r { Ok(n) => { self.reported = true; self.status = format!("Done: reported {n} device(s). Thank you, a driver may be added later."); self.say(format!("Report sent: {n} device(s)")); } Err(e) => { self.status = "Stopped: the report could not be sent. See the log.".into(); self.say(format!("[FAILED] Report: {e}")); } }
             }
         }
         let mut reload_power = false;
@@ -404,6 +415,17 @@ impl App {
         self.refresh_backups();
     }
 
+    /// Opt-in: runs only when the user clicks the button; sends hardware IDs of the devices that have no driver anywhere.
+    fn send_report(&mut self, ctx: &Ctx) {
+        if REPORT_URL.is_empty() || self.reported || self.report_rx.is_some() { return; }
+        let items = crate::report::build(&self.info_rows);
+        let (tx, rx) = channel();
+        let (http, ctx2) = (self.http.clone(), ctx.clone());
+        self.status = "Sending the report...".into();
+        std::thread::spawn(move || { let _ = tx.send(crate::report::send(&*http, REPORT_URL, &items)); ctx2.repaint(); });
+        self.report_rx = Some(rx);
+    }
+
     // ---------- power plan ----------
     fn power_job(&mut self, ctx: &Ctx, f: impl FnOnce(&power::Env) -> PowerMsg + Send + 'static) {
         if self.busy() { return; }
@@ -463,6 +485,7 @@ impl App {
             "scan" => self.start_scan(ctx),
             "install" => self.start_install(ctx),
             "update" => self.start_update(ctx),
+            "report" => self.send_report(ctx),
             "tab" => {
                 self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("power") => Tab::Power, Some("log") => Tab::Log, _ => Tab::Updates };
                 if self.tab == Tab::Backups { self.refresh_backups(); }
@@ -555,6 +578,7 @@ impl App {
             "rows": rows, "infos": infos, "inventory": inventory, "backups": backups, "selectedBackup": self.selected_backup,
             "pills": { "drivers": self.inventory.len(), "upIcon": up_icon, "upTone": up_tone, "upText": up_text, "missing": self.missing_count },
             "selN": sel_n, "selSize": size_text(Some(sel_mb)), "allTicked": !self.rows.is_empty() && self.rows.iter().all(|r| r.ticked),
+            "report": { "available": !REPORT_URL.is_empty() && self.mode == Mode::Review, "count": crate::report::build(&self.info_rows).len(), "done": self.reported, "sending": self.report_rx.is_some() },
             "restorePoint": self.restore_point, "log": self.log.join("\n"), "power": self.power_view(),
             "confirm": self.confirm_rollback.and_then(|i| self.backups.get(i)).map(|b| json!({ "device": b.entry.device, "version": b.entry.old_version })),
         })

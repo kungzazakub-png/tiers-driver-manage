@@ -1,4 +1,4 @@
-﻿//! HTTP access behind a small trait so the engine can be tested with a fake server.
+//! HTTP access behind a small trait so the engine can be tested with a fake server.
 use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
@@ -6,6 +6,7 @@ use std::time::Duration;
 pub trait Http {
     fn get(&self, url: &str) -> Result<Vec<u8>, String>;
     fn post_form(&self, url: &str, fields: &[(&str, &str)]) -> Result<Vec<u8>, String>;
+    fn post_json(&self, url: &str, body: &str) -> Result<Vec<u8>, String>;
     fn download(&self, url: &str, dest: &Path) -> Result<(), String>;
 }
 
@@ -45,6 +46,9 @@ impl Http for Real {
     fn post_form(&self, url: &str, fields: &[(&str, &str)]) -> Result<Vec<u8>, String> {
         read_all(self.agent.post(url).send_form(fields).map_err(|e| e.to_string())?)
     }
+    fn post_json(&self, url: &str, body: &str) -> Result<Vec<u8>, String> {
+        read_all(self.agent.post(url).set("Content-Type", "application/json").send_string(body).map_err(|e| e.to_string())?)
+    }
     fn download(&self, url: &str, dest: &Path) -> Result<(), String> {
         let resp = self.agent.get(url).timeout_read_fix().call().map_err(|e| e.to_string())?;
         let mut out = std::fs::File::create(dest).map_err(|e| e.to_string())?;
@@ -79,6 +83,7 @@ impl Fake {
 impl Http for Fake {
     fn get(&self, url: &str) -> Result<Vec<u8>, String> { self.find(url) }
     fn post_form(&self, url: &str, _f: &[(&str, &str)]) -> Result<Vec<u8>, String> { self.find(url) }
+    fn post_json(&self, url: &str, body: &str) -> Result<Vec<u8>, String> { self.calls.borrow_mut().push(format!("BODY {body}")); self.find(url) }
     fn download(&self, url: &str, dest: &Path) -> Result<(), String> { std::fs::write(dest, self.find(url)?).map_err(|e| e.to_string()) }
 }
 

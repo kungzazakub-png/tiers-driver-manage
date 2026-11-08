@@ -18,3 +18,5 @@ pub mod wu;
 pub mod winsys;
 pub mod ui;
 pub mod power;
+pub mod report;
+pub mod fetch;

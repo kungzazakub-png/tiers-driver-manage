@@ -14,8 +14,8 @@ $doc = [IO.File]::ReadAllText((Join-Path $src 'driverdb.json'), [Text.Encoding]:
 $bad = @(@($doc.drivers) | ForEach-Object { $why = Test-CatalogEntry $_; if ($why) { "$($_.name): $why" } })
 if ($bad.Count) { throw ("Catalog has invalid entries:`n  " + ($bad -join "`n  ")) }
 
-$revFile = Join-Path $PSScriptRoot 'catalog.rev'
-$rev = 1 + $(if (Test-Path $revFile) { [int](Get-Content $revFile -Raw) } else { 0 })
+# the revision is the clock (seconds): both a local run and the GitHub Action always publish a higher number than before
+$rev = [int][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $dist = Join-Path $PSScriptRoot 'dist\catalog'
 New-Item -ItemType Directory -Force $dist | Out-Null
 $file = Join-Path $dist 'driverdb.json'
@@ -31,5 +31,4 @@ $gh = (Get-Command gh -ErrorAction SilentlyContinue).Source; if (-not $gh) { thr
 $ErrorActionPreference = 'Continue'; & $gh release view catalog --repo $repo 2>$null | Out-Null; $exists = ($LASTEXITCODE -eq 0); $ErrorActionPreference = 'Stop'
 if (-not $exists) { & $gh release create catalog --repo $repo --prerelease --title 'Driver catalog' --notes 'Signed online driver catalog (fetched by the program at every scan).' }
 & $gh release upload catalog $file $manifest --repo $repo --clobber
-Set-Content $revFile $rev
 "Published catalog revision $rev to $repo"
