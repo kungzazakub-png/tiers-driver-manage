@@ -284,7 +284,7 @@ impl App {
         self.auto = true; self.pass = 1; self.mode = Mode::Run;
         let job = engine::new_job();
         self.running = Running::Install(job.clone());
-        self.banner = Some(Banner { kind: Kind::Info, text: "Getting ready to install...".into(), buttons: vec![BannerBtn { id: "stop", text: "Stop after this item".into(), primary: false, link: false, enabled: true }] });
+        self.banner = Some(Banner { kind: Kind::Info, text: "กำลังเตรียมติดตั้ง...".into(), buttons: vec![BannerBtn { id: "stop", text: "Stop after this item".into(), primary: false, link: false, enabled: true }] });
         let offers = self.offers.clone();
         let (cfg, http, ctx2, rp) = (self.cfg.clone(), self.http.clone(), ctx.clone(), self.restore_point && !self.restore_done);
         self.restore_done = true;
@@ -363,7 +363,7 @@ impl App {
         let total = self.rows.len();
         let done = self.rows.iter().filter(|r| matches!(g.items.get(&r.offer.id).map(|s| s.code), Some(Code::Ok | Code::Fail | Code::Skip))).count();
         let stopping = g.cancel;
-        let text = if stopping { format!("Stopping after this item · {done} of {total} done") } else { format!("Installing {done} of {total} · do not close the program or turn off the PC") };
+        let text = if stopping { format!("จะหยุดหลังรายการนี้ · เสร็จแล้ว {done} จาก {total}") } else { format!("กำลังติดตั้ง {done} จาก {total} · ห้ามปิดโปรแกรมหรือปิดเครื่อง") };
         self.banner = Some(Banner { kind: Kind::Info, text, buttons: vec![BannerBtn { id: "stop", text: if stopping { "Stopping...".into() } else { "Stop after this item".into() }, primary: false, link: false, enabled: !stopping }] });
     }
 
@@ -399,8 +399,8 @@ impl App {
         } else {
             self.status = status;
             let ok = self.results.iter().filter(|r| r.code == Code::Ok).count();
-            self.banner = if ok > 0 { Some(Banner { kind: Kind::Info, text: format!("Installed {ok} · {} more found from newly detected hardware. Review the list and click Install again.", self.rows.len()), buttons: vec![] }) }
-                else if self.rows.iter().any(|r| r.system) { Some(Banner { kind: Kind::Warn, text: "Chipset and system drivers are not ticked because they affect the whole PC and most do not need updating. Tick them yourself if you want them.".into(), buttons: vec![] }) } else { None };
+            self.banner = if ok > 0 { Some(Banner { kind: Kind::Info, text: format!("ติดตั้งแล้ว {ok} · พบเพิ่มอีก {} รายการจากฮาร์ดแวร์ที่เพิ่งตรวจพบ ดูรายการแล้วกด Install อีกครั้ง", self.rows.len()), buttons: vec![] }) }
+                else if self.rows.iter().any(|r| r.system) { Some(Banner { kind: Kind::Warn, text: "ไดรเวอร์ Chipset และไดรเวอร์ระบบไม่ได้ติ๊กไว้ให้ เพราะกระทบทั้งเครื่องและส่วนใหญ่ไม่จำเป็นต้องอัปเดต ถ้าต้องการให้ติ๊กเองได้".into(), buttons: vec![] }) } else { None };
             self.tab = Tab::Updates;
         }
     }
@@ -425,7 +425,7 @@ impl App {
             self.pass += 1;
             self.log.push(format!("--- Round {}: scanning again in case newly detected hardware needs drivers ---", self.pass));
             self.show_results();
-            self.banner = Some(Banner { kind: Kind::Info, text: "This install round is finished · scanning again in case newly detected hardware needs drivers".into(), buttons: vec![] });
+            self.banner = Some(Banner { kind: Kind::Info, text: "ติดตั้งรอบนี้เสร็จแล้ว · กำลังสแกนอีกครั้ง เผื่อมีฮาร์ดแวร์ใหม่ที่ต้องการไดรเวอร์".into(), buttons: vec![] });
             self.begin_scan(ctx);
             return;
         }
@@ -441,7 +441,7 @@ impl App {
         if skip > 0 { parts.push(format!("Skipped {skip}")); }
         if fail > 0 { parts.push(format!("Failed {fail}")); }
         let mut text = parts.join(" · ");
-        if self.need_reboot { text.push_str(" · A restart is needed for the drivers to work fully"); } else if fail == 0 && skip == 0 { text.push_str(" · Finished, no restart needed"); }
+        if self.need_reboot { text.push_str(" · ต้องรีสตาร์ทเครื่องเพื่อให้ไดรเวอร์ทำงานเต็มที่"); } else if fail == 0 && skip == 0 { text.push_str(" · เสร็จแล้ว ไม่ต้องรีสตาร์ท"); }
         let kind = if fail > 0 && ok == 0 { Kind::Bad } else if fail > 0 || skip > 0 || self.need_reboot { Kind::Warn } else { Kind::Good };
         let b = |id: &'static str, t: &str, primary: bool, link: bool| BannerBtn { id, text: t.into(), primary, link, enabled: true };
         let mut buttons = vec![];
@@ -449,7 +449,7 @@ impl App {
         if fail > 0 { buttons.push(b("retry", "Retry failed ones", !self.need_reboot, false)); }
         if !self.need_reboot && !self.results.is_empty() { buttons.push(b("restart", "Restart computer", false, true)); }
         if !self.need_reboot && fail == 0 { buttons.push(b("rescan", "Scan again", false, true)); }
-        self.banner = Some(if self.results.is_empty() { Banner { kind: Kind::Good, text: "Nothing needs to be installed".into(), buttons: vec![] } } else { Banner { kind, text, buttons } });
+        self.banner = Some(if self.results.is_empty() { Banner { kind: Kind::Good, text: "ไม่มีอะไรต้องติดตั้ง".into(), buttons: vec![] } } else { Banner { kind, text, buttons } });
         self.status = "Done".into();
     }
 
@@ -458,13 +458,13 @@ impl App {
             "stop" => { if let Running::Install(j) = &self.running { j.lock().unwrap().cancel = true; } }
             "restart" => {
                 let _ = std::process::Command::new("shutdown.exe").args(["/r", "/t", "30", "/c", "TierS Driver Manage: restart to finish installing drivers"]).spawn();
-                self.banner = Some(Banner { kind: Kind::Warn, text: "The computer will restart in 30 seconds · save any open work".into(), buttons: vec![BannerBtn { id: "abort", text: "Cancel restart".into(), primary: true, link: false, enabled: true }] });
+                self.banner = Some(Banner { kind: Kind::Warn, text: "เครื่องจะรีสตาร์ทใน 30 วินาที · บันทึกงานที่เปิดอยู่ให้เรียบร้อย".into(), buttons: vec![BannerBtn { id: "abort", text: "Cancel restart".into(), primary: true, link: false, enabled: true }] });
             }
             "abort" => {
                 let _ = std::process::Command::new("shutdown.exe").arg("/a").spawn();
-                self.banner = Some(Banner { kind: Kind::Warn, text: "Restart cancelled · drivers will work fully after a restart".into(), buttons: vec![BannerBtn { id: "restart", text: "Restart now".into(), primary: true, link: false, enabled: true }] });
+                self.banner = Some(Banner { kind: Kind::Warn, text: "ยกเลิกการรีสตาร์ทแล้ว · ไดรเวอร์จะทำงานเต็มที่หลังรีสตาร์ท".into(), buttons: vec![BannerBtn { id: "restart", text: "Restart now".into(), primary: true, link: false, enabled: true }] });
             }
-            "later" => self.banner = Some(Banner { kind: Kind::Warn, text: "Not restarted yet · installed drivers will work fully after a restart".into(), buttons: vec![BannerBtn { id: "restart", text: "Restart now".into(), primary: true, link: false, enabled: true }] }),
+            "later" => self.banner = Some(Banner { kind: Kind::Warn, text: "ยังไม่ได้รีสตาร์ท · ไดรเวอร์ที่ติดตั้งจะทำงานเต็มที่หลังรีสตาร์ท".into(), buttons: vec![BannerBtn { id: "restart", text: "Restart now".into(), primary: true, link: false, enabled: true }] }),
             "retry" => self.retry_failed(ctx),
             "rescan" => self.start_scan(ctx),
             _ => {}

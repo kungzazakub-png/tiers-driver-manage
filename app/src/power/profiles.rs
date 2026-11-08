@@ -30,13 +30,13 @@ pub struct Profile {
 }
 
 pub const PROFILES: [Profile; 4] = [
-    Profile { tier: Tier::Low, title: "Low spec", suited: "Older Core i3 / Ryzen 3 class, 4–8 GB RAM", goal: "Stable and cool: Balanced plan, no aggressive changes",
+    Profile { tier: Tier::Low, title: "Low spec", suited: "เครื่องเก่า ระดับ Core i3 / Ryzen 3 แรม 4–8 GB", goal: "เสถียรและเย็น ใช้แผน Balanced ไม่ปรับอะไรแรง",
               power_mode_best: false, usb_optional: false, pcie_optional: false, ultimate_optional: false },
-    Profile { tier: Tier::Medium, title: "Medium", suited: "Core i5 / Ryzen 5 class, 8–16 GB RAM", goal: "Balance of performance and power use",
+    Profile { tier: Tier::Medium, title: "Medium", suited: "ระดับ Core i5 / Ryzen 5 แรม 8–16 GB", goal: "สมดุลระหว่างความแรงกับการกินไฟ",
               power_mode_best: true, usb_optional: false, pcie_optional: false, ultimate_optional: false },
-    Profile { tier: Tier::High, title: "High performance", suited: "Newer Core i5–i7 / Ryzen 5–7, 16–32 GB RAM", goal: "Gaming performance and responsiveness",
+    Profile { tier: Tier::High, title: "High performance", suited: "Core i5–i7 / Ryzen 5–7 รุ่นใหม่ แรม 16–32 GB", goal: "เน้นเล่นเกมและความไวในการตอบสนอง",
               power_mode_best: true, usb_optional: true, pcie_optional: true, ultimate_optional: false },
-    Profile { tier: Tier::Extreme, title: "Extreme performance", suited: "Core i7–i9 / Ryzen 7–9, 32 GB+ RAM, desktop with good cooling", goal: "Less unnecessary power saving, CPU protection stays on",
+    Profile { tier: Tier::Extreme, title: "Extreme performance", suited: "Core i7–i9 / Ryzen 7–9 แรม 32 GB ขึ้นไป เครื่องตั้งโต๊ะที่ระบายความร้อนดี", goal: "ตัดการประหยัดไฟที่ไม่จำเป็นออก ระบบป้องกัน CPU ยังทำงานอยู่",
               power_mode_best: false, usb_optional: true, pcie_optional: true, ultimate_optional: true },
 ];
 

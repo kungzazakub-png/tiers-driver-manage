@@ -15,7 +15,7 @@
 * { box-sizing:border-box; }
 html,body { margin:0; height:100%; }
 button, input, select, textarea, pre { font-family:inherit; }
-body { font:14px/1.5 var(--font); color:var(--text); background:var(--page); display:flex; flex-direction:column; overflow:hidden; user-select:none; -webkit-user-select:none; cursor:default; }
+body { font:400 12px/1.55 var(--font); color:var(--text); background:var(--page); display:flex; flex-direction:column; overflow:hidden; user-select:none; -webkit-user-select:none; cursor:default; }
 svg { display:block; flex:none; }
 .ico { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)} .accent{color:var(--accent-dark)} .muted{color:var(--muted)}
@@ -23,16 +23,16 @@ svg { display:block; flex:none; }
 /* top bar */
 .top { height:56px; background:#fff; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 14px; gap:12px; flex:none; }
 .top img { width:34px; height:34px; }
-.top h1 { margin:0; font-size:18px; font-weight:600; color:var(--navy); }
+.top h1 { margin:0; font-size:16px; font-weight:400; color:var(--navy); }
 .top .sep { width:1px; height:20px; background:var(--border); }
-.top .machine { color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.top .machine { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 .top .grow { flex:1; }
-.top .ver { color:var(--muted); font-size:13px; }
+.top .ver { color:var(--muted); font-size:12px; }
 
 /* buttons */
-.btn { font:600 13.5px var(--font); border-radius:6px; border:1px solid #aabeeb; background:#fff; color:var(--accent-dark); padding:0 16px; height:34px; cursor:pointer; white-space:nowrap; }
+.btn { font:400 12px var(--font); border-radius:6px; border:1px solid #aabeeb; background:#fff; color:var(--accent-dark); padding:0 16px; height:34px; cursor:pointer; white-space:nowrap; }
 .btn:hover:not(:disabled) { background:var(--accent-soft); }
-.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-size:14.5px; }
+.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-size:12px; }
 .btn.primary:hover:not(:disabled) { background:var(--accent-dark); }
 .btn.link { border-color:transparent; background:transparent; padding:0 10px; }
 .btn:disabled { background:var(--off); border-color:var(--off); color:var(--off-text); cursor:default; }
@@ -43,7 +43,7 @@ svg { display:block; flex:none; }
 .tool { padding:14px 20px 0; flex:none; }
 .tool .row { display:flex; align-items:center; gap:10px; height:40px; }
 .tool .btn.primary { height:40px; width:168px; }
-.status { display:flex; align-items:center; gap:7px; font-size:14px; }
+.status { display:flex; align-items:center; gap:7px; font-size:12px; }
 .bar { height:3px; margin-top:10px; background:transparent; overflow:hidden; }
 .bar i { display:block; height:100%; background:var(--accent); }
 .bar.indet i { width:30%; animation:slide 1.2s ease-in-out infinite; }
@@ -51,12 +51,12 @@ svg { display:block; flex:none; }
 
 /* tabs */
 .tabs { display:flex; align-items:flex-end; padding:0 20px; flex:none; margin-top:0; }
-.tab { height:40px; padding:0 14px; font:600 14.5px var(--font); color:var(--muted); background:none; border:0; cursor:pointer; position:relative; }
+.tab { height:40px; padding:0 14px; font:400 12px var(--font); color:var(--muted); background:none; border:0; cursor:pointer; position:relative; }
 .tab:hover { color:var(--text); }
 .tab.on { color:var(--accent-dark); }
 .tab.on::after { content:""; position:absolute; left:8px; right:8px; bottom:0; height:3px; border-radius:2px 2px 0 0; background:var(--accent); }
 .pills { margin-left:auto; display:flex; gap:8px; align-self:center; padding-bottom:4px; }
-.pill { display:flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--border); border-radius:14px; padding:3px 10px; font:600 13px var(--font); color:var(--text); cursor:pointer; }
+.pill { display:flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--border); border-radius:14px; padding:3px 10px; font:400 12px var(--font); color:var(--text); cursor:pointer; }
 .pill:hover { border-color:var(--accent); }
 .pill .ico { width:16px; height:16px; }
 
@@ -76,16 +76,16 @@ svg { display:block; flex:none; }
 .tr { display:grid; align-items:center; min-height:46px; border-bottom:1px solid var(--line); padding-right:8px; }
 .tr:not(.th):hover { background:var(--hover); }
 .tr.sel { background:var(--accent-soft); }
-.th { position:sticky; top:0; background:#fff; min-height:34px; z-index:1; border-bottom:1px solid var(--border); font:600 12.5px var(--font); color:var(--muted); }
+.th { position:sticky; top:0; background:#fff; min-height:34px; z-index:1; border-bottom:1px solid var(--border); font:400 12px var(--font); color:var(--muted); }
 .tr > div { padding:0 4px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.tr > div.wrap { white-space:normal; font-size:12.5px; font-weight:600; line-height:1.3; padding:4px; }
+.tr > div.wrap { white-space:normal; font-size:12px; font-weight:400; line-height:1.3; padding:4px; }
 .g-up { grid-template-columns:44px 32px minmax(200px,1fr) 112px 124px 92px 72px minmax(190px,300px); }
 .g-up.res { grid-template-columns:14px 32px minmax(200px,1fr) 112px 124px 92px 72px minmax(190px,300px); }
 .g-in { grid-template-columns:44px minmax(200px,1fr) 124px 170px 130px 100px 120px; min-height:40px; }
 .g-bk { grid-template-columns:190px minmax(220px,1fr) 170px 150px; min-height:42px; }
 .g-bk > div:first-child, .g-in > div:first-child { padding-left:14px; }
 .tone-good{color:var(--good)} .tone-bad{color:var(--bad)} .tone-warn{color:var(--warn)} .tone-accent{color:var(--accent-dark)} .tone-muted{color:var(--muted)}
-.s { font-weight:600; }
+.s { font-weight:400; }
 .ic { display:flex; justify-content:center; }
 
 /* checkbox */
@@ -97,8 +97,8 @@ svg { display:block; flex:none; }
 
 /* empty + log */
 .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px 20px 60px; }
-.empty h2 { margin:0 0 6px; font-size:22px; font-weight:600; color:var(--navy); }
-.empty p { margin:0; color:var(--muted); font-size:14.5px; white-space:pre-line; }
+.empty h2 { margin:0 0 6px; font-size:20px; font-weight:400; color:var(--navy); }
+.empty p { margin:0; color:var(--muted); font-size:12px; white-space:pre-line; }
 .empty.good h2 { color:var(--good); } .empty.accent h2 { color:var(--accent); }
 .log { margin:0; padding:14px; font:13px/1.55 var(--font); white-space:pre-wrap; user-select:text; -webkit-user-select:text; cursor:text; }
 
@@ -114,19 +114,19 @@ svg { display:block; flex:none; }
 /* power plan */
 .pw { padding:18px 22px 26px; max-width:1040px; }
 .pw section { margin-bottom:24px; }
-.pw h3 { margin:0 0 10px; font-size:15px; font-weight:600; color:var(--navy); }
+.pw h3 { margin:0 0 10px; font-size:14px; font-weight:400; color:var(--navy); }
 .hwgrid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px 20px; }
-.hwgrid .k { color:var(--muted); font-size:12.5px; }
-.hwgrid .v { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hwgrid .k { color:var(--muted); font-size:12px; }
+.hwgrid .v { font-weight:400; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .rec { padding:10px 14px; border-radius:6px; background:var(--accent-soft); display:flex; gap:10px; align-items:flex-start; }
 .rec .ico { color:var(--accent); margin-top:2px; }
 .rec small { color:var(--muted); display:block; margin-top:2px; }
 .prow { display:grid; grid-template-columns:28px 190px minmax(0,1.2fr) minmax(0,1fr) 110px; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; cursor:pointer; }
 .prow:hover { background:var(--hover); }
 .prow.on { border-color:var(--accent); background:var(--accent-soft); }
-.prow .n { font-weight:600; }
-.prow .m { color:var(--muted); font-size:13px; }
-.badge { font:600 11.5px var(--font); color:var(--accent-dark); border:1px solid #aabeeb; border-radius:10px; padding:1px 8px; justify-self:end; background:#fff; }
+.prow .n { font-weight:400; }
+.prow .m { color:var(--muted); font-size:12px; }
+.badge { font:400 12px var(--font); color:var(--accent-dark); border:1px solid #aabeeb; border-radius:10px; padding:1px 8px; justify-self:end; background:#fff; }
 .radio { appearance:none; -webkit-appearance:none; width:18px; height:18px; margin:0; border:1.5px solid #5b6b82; border-radius:50%; background:#fff; cursor:pointer; position:relative; }
 .radio:checked { border-color:var(--accent); }
 .radio:checked::after { content:""; position:absolute; inset:3px; border-radius:50%; background:var(--accent); }
@@ -139,15 +139,15 @@ svg { display:block; flex:none; }
 .ptbl .th { position:static; }
 .ptbl .tr > div { padding:0 10px; }
 .ptbl .tr:last-child { border-bottom:0; }
-.note-warn { color:var(--warn); font-weight:600; margin:0 0 10px; }
+.note-warn { color:var(--warn); font-weight:400; margin:0 0 10px; }
 .rep { border:1px solid var(--line); border-radius:6px; padding:14px 16px; }
-.rep h4 { margin:12px 0 4px; font-size:13px; color:var(--muted); font-weight:600; }
+.rep h4 { margin:12px 0 4px; font-size:12px; color:var(--muted); font-weight:400; }
 .rep h4:first-child { margin-top:0; }
 .rep ul { margin:0; padding-left:18px; } .rep li { margin:2px 0; }
 .rep .two { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-.rep .kv { display:grid; grid-template-columns:200px 1fr; gap:2px 10px; font-size:13px; }
+.rep .kv { display:grid; grid-template-columns:200px 1fr; gap:2px 10px; font-size:12px; }
 .rep .kv span:nth-child(odd) { color:var(--muted); }
-.chip { display:inline-flex; align-items:center; gap:6px; font-weight:600; }
+.chip { display:inline-flex; align-items:center; gap:6px; font-weight:400; }
 .cmp { margin-top:12px; }
 .cmp .tr { grid-template-columns:260px 1fr 1fr; min-height:34px; padding-right:0; }
 .cmp .tr > div { padding:0 10px; }
@@ -157,13 +157,13 @@ svg { display:block; flex:none; }
 .mbar { display:flex; height:16px; border-radius:8px; overflow:hidden; background:var(--line); margin-bottom:10px; }
 .mbar i { display:block; height:100%; }
 .mbar .u { background:var(--accent-dark); } .mbar .sb { background:#6b93ee; } .mbar .fr { background:#b4caf7; }
-.mleg { display:flex; gap:18px; margin-bottom:16px; color:var(--muted); font-size:12.5px; }
+.mleg { display:flex; gap:18px; margin-bottom:16px; color:var(--muted); font-size:12px; }
 .mleg span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; background:var(--c); }
 .mem { padding:18px 22px 26px; }
 .mcols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:20px; align-items:start; }
 @media (max-width:1000px) { .mcols { grid-template-columns:minmax(0,1fr); } }
 .mcard { border:1px solid var(--line); border-radius:8px; padding:16px 18px; margin:0; }
-.mcard h3 { margin:0 0 12px; font-size:15px; font-weight:600; color:var(--navy); }
+.mcard h3 { margin:0 0 12px; font-size:14px; font-weight:400; color:var(--navy); }
 .mem .hwgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .mhead { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
 .mhead h3 { margin:0; flex:1; }
@@ -172,14 +172,16 @@ svg { display:block; flex:none; }
 .brow:hover { background:var(--hover); }
 .brow.on { border-color:var(--accent); background:var(--accent-soft); }
 .brow .cb { margin:3px 0 0; }
-.brow .n { font-weight:600; display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
-.brow .w { color:var(--muted); font-size:13px; grid-column:2; }
+.brow .n { font-weight:400; display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+.brow .w { color:var(--muted); font-size:12px; grid-column:2; }
 .brow .badge { background:#fff; }
+/* Windows type scale: 12px regular for everything; semibold only for titles, like Explorer's selected tab and dialog titles */
+.top h1, .empty h2, .pw h3, .mcard h3, .dlg h3, .tab.on, .brow .n, .prow .n, .mrow .k b, .rec b { font-weight:600; }
 .mrow { margin:0 0 16px; }
-.mrow .k b { font-weight:600; display:block; }
-.mrow .k small { color:var(--muted); font-size:12.5px; }
+.mrow .k b { font-weight:400; display:block; }
+.mrow .k small { color:var(--muted); font-size:12px; }
 .mrow .ctl { display:flex; align-items:center; gap:14px; margin-top:6px; }
-.mrow .val { font-weight:600; color:var(--navy); min-width:64px; text-align:right; }
+.mrow .val { font-weight:400; color:var(--navy); min-width:64px; text-align:right; }
 .rng { flex:1; min-width:0; margin:0; height:22px; accent-color:var(--accent); cursor:pointer; }
 .now { margin-top:4px; padding:10px 14px; border-radius:6px; background:var(--accent-soft); }
 .now.go { background:#d6e4ff; }
@@ -187,7 +189,7 @@ svg { display:block; flex:none; }
 /* modal */
 .shade { position:fixed; inset:0; background:rgba(15,37,71,.35); display:flex; align-items:center; justify-content:center; z-index:10; }
 .dlg { width:440px; background:#fff; border-radius:10px; padding:22px; box-shadow:0 12px 40px rgba(15,37,71,.3); }
-.dlg h3 { margin:0 0 8px; font-size:17px; color:var(--navy); }
+.dlg h3 { margin:0 0 8px; font-size:16px; color:var(--navy); }
 .dlg p { margin:0 0 6px; color:var(--muted); }
 .dlg .acts { margin-top:18px; display:flex; justify-content:flex-end; gap:8px; }
 </style>
@@ -221,7 +223,7 @@ function updatesTable() {
   }
   for (const d of S.infos) {
     h += `<div class="tr g-up"><div></div><div class="ic">${ico('info','muted')}</div>
-      <div title="${esc(d.name + '\nHardware ID: ' + d.hwid + '\nNo driver was found in Windows Update or the Microsoft Catalog. Try the manufacturer\'s website using this Hardware ID.')}">${esc(d.name)}</div>
+      <div title="${esc(d.name + '\nHardware ID: ' + d.hwid + '\nไม่พบไดรเวอร์ใน Windows Update หรือ Microsoft Catalog ลองค้นหาในเว็บไซต์ผู้ผลิตด้วย Hardware ID นี้')}">${esc(d.name)}</div>
       <div>${esc(d.cls)}</div><div>—</div><div></div><div></div><div class="s tone-muted">No driver found</div></div>`;
   }
   return h;
@@ -231,13 +233,13 @@ function installedTable() {
   let h = `<div class="tr th g-in"><div></div><div>Device</div><div>Type</div><div>Manufacturer</div><div>Version</div><div>Driver date</div><div>Status</div></div>`;
   for (const d of S.inventory) {
     h += `<div class="tr g-in"><div>${d.old ? ico('clock','warn') : ''}</div><div title="${esc(d.name)}">${esc(d.name)}</div><div>${esc(d.cls)}</div><div>${esc(d.maker)}</div><div>${esc(d.version)}</div><div>${esc(d.date)}</div>
-      <div class="s ${d.old?'tone-warn':'tone-muted'}">${d.old ? `Old (${d.age} yr)` : (d.known ? '<span style="font-weight:400">OK</span>' : '')}</div></div>`;
+      <div class="s ${d.old?'tone-warn':'tone-muted'}">${d.old ? `เก่า (${d.age} ปี)` : (d.known ? '<span style="font-weight:400">OK</span>' : '')}</div></div>`;
   }
   return h;
 }
 
 function backupsTable() {
-  if (!S.backups.length) return `<div class="empty"><p>No backups yet\nBefore a driver is replaced, the one it replaces is saved here so you can roll back.</p></div>`;
+  if (!S.backups.length) return `<div class="empty"><p>ยังไม่มีข้อมูลสำรอง\nก่อนเปลี่ยนไดรเวอร์ โปรแกรมจะเก็บไดรเวอร์ตัวเดิมไว้ที่นี่ เพื่อให้ย้อนกลับได้</p></div>`;
   let h = `<div class="tr th g-bk"><div>Backed up</div><div>Device</div><div>Saved version</div><div>Backup</div></div>`;
   S.backups.forEach((b, i) => { h += `<div class="tr g-bk ${S.selectedBackup===i?'sel':''}" data-pick="${i}" style="cursor:pointer"><div>${esc(b.time)}</div><div>${esc(b.device)}</div><div>${esc(b.version)}</div><div>${esc(b.kind)}</div></div>`; });
   return h;
@@ -245,24 +247,24 @@ function backupsTable() {
 
 function powerPanel() {
   const P = S.power;
-  if (!P.loaded) return `<div class="empty"><h2>${P.busy ? "Reading this PC" : "Power Plan Manager"}</h2><p>${P.busy ? "Checking the CPU, memory and current power plan..." : "Open this tab to read the hardware."}</p></div>`;
+  if (!P.loaded) return `<div class="empty"><h2>${P.busy ? "กำลังอ่านข้อมูลเครื่อง" : "Power Plan Manager"}</h2><p>${P.busy ? "กำลังตรวจ CPU หน่วยความจำ และแผนพลังงานที่ใช้อยู่..." : "เปิดแท็บนี้เพื่ออ่านข้อมูลฮาร์ดแวร์"}</p></div>`;
   const h = P.hw || {};
   const sel = P.profiles.find(p => p.key === P.selected) || P.profiles[0];
   const hwItems = [["CPU vendor",h.vendor],["CPU model",h.cpu],["Cores / threads",h.cores],["RAM",h.ram],["Windows",h.windows],["PC type",h.type],["Power source",h.source],["Current power plan",h.plan]];
   const off = (ok) => ok ? "" : "off";
-  const opt = (name, on, enabled, text, extra="") => `<label class="${off(enabled)}"><input class="cb" type="checkbox" data-popt="${name}" ${on?"checked":""} ${enabled && !P.busy?"":"disabled"}><span>${text}${enabled?"":" <span class=muted>(not part of this profile)</span>"}</span>${extra}</label>`;
+  const opt = (name, on, enabled, text, extra="") => `<label class="${off(enabled)}"><input class="cb" type="checkbox" data-popt="${name}" ${on?"checked":""} ${enabled && !P.busy?"":"disabled"}><span>${text}${enabled?"":" <span class=muted>(ไม่เกี่ยวกับโปรไฟล์นี้)</span>"}</span>${extra}</label>`;
   let h2 = `<div class="pw">
     <section><h3>Hardware information</h3><div class="hwgrid">${hwItems.map(([k,v]) => `<div><div class="k">${k}</div><div class="v" title="${esc(v)}">${esc(v)}</div></div>`).join("")}</div></section>
     <section><div class="rec">${ico("info")}<div><b>Recommended: ${esc(P.recommendedName)}</b><small>${esc(P.why.join(" · "))}</small></div></div></section>
     <section><h3>Performance profile</h3>${P.profiles.map(p => `<label class="prow ${P.selected===p.key?"on":""}"><input class="radio" type="radio" name="tier" data-tier="${p.key}" ${P.selected===p.key?"checked":""} ${P.busy?"disabled":""}>
       <span class="n">${esc(p.title)}</span><span class="m">${esc(p.suited)}</span><span class="m">${esc(p.goal)}</span>${P.recommended===p.key?`<span class="badge">Recommended</span>`:"<span></span>"}</label>`).join("")}</section>
     <section><h3>Options</h3><div class="opts">
-      ${opt("restore", P.opts.restore_point, true, "Create a system restore point first")}
-      ${opt("usb", P.opts.usb_off, sel.usb, "Turn off USB selective suspend (optional)")}
-      ${opt("pcie", P.opts.pcie_off, sel.pcie, "Set PCI Express link state to Off (optional)")}
-      ${opt("ultimate", P.opts.ultimate, sel.ultimate, "Use the Ultimate Performance plan (optional)", sel.ultimate ? `<button class="btn" data-act="power_compare" ${P.busy?"disabled":""}>Compare with Balanced</button>` : "")}
+      ${opt("restore", P.opts.restore_point, true, "สร้างจุดคืนค่าระบบ (restore point) ก่อนเริ่ม")}
+      ${opt("usb", P.opts.usb_off, sel.usb, "ปิด USB selective suspend ไม่ให้ Windows ตัดไฟพอร์ต USB (ไม่บังคับ)")}
+      ${opt("pcie", P.opts.pcie_off, sel.pcie, "ตั้ง PCI Express link state เป็น Off ไม่ลดความเร็วการ์ดจอ/SSD เพื่อประหยัดไฟ (ไม่บังคับ)")}
+      ${opt("ultimate", P.opts.ultimate, sel.ultimate, "ใช้แผน Ultimate Performance (ไม่บังคับ)", sel.ultimate ? `<button class="btn" data-act="power_compare" ${P.busy?"disabled":""}>Compare with Balanced</button>` : "")}
     </div></section>
-    <section><h3>Changes that will be applied</h3>${P.batteryBlock ? `<p class="note-warn">The Extreme profile is not applied while the PC runs on battery. Plug in the charger first.</p>` : ""}
+    <section><h3>Changes that will be applied</h3>${P.batteryBlock ? `<p class="note-warn">โปรไฟล์ Extreme ใช้ตอนใช้แบตเตอรี่ไม่ได้ กรุณาเสียบสายชาร์จก่อน</p>` : ""}
       <div class="ptbl"><div class="tr th"><div>Setting</div><div>Now</div><div>After</div><div>Note</div></div>${P.preview.map(r => `<div class="tr"><div>${esc(r.label)}</div><div title="${esc(r.current)}">${esc(r.current)}</div><div title="${esc(r.new)}">${esc(r.new)}</div><div class="muted">${esc(r.note)}</div></div>`).join("")}</div></section>`;
   if (P.cmp) h2 += `<section><h3>Ultimate Performance vs Balanced</h3><p style="margin:0 0 6px">${esc(P.cmp.advice)}</p>${P.cmp.available ? `<div class="ptbl cmp"><div class="tr th"><div>Setting</div><div>Balanced</div><div>Ultimate Performance</div></div>${P.cmp.rows.map(r => `<div class="tr ${r.differs?"diff":""}"><div>${esc(r.label)}</div><div>${esc(r.balanced)}</div><div>${esc(r.ultimate)}</div></div>`).join("")}</div>` : ""}</section>`;
   if (P.report) {
@@ -285,63 +287,63 @@ let dragging = false;
 function memoryPanel() {
   const M = S.memory, s = M.stats;
   const sl = (name, title, hint, r, val) => `<div class="mrow"><div class="k"><b>${title}</b><small>${hint}</small></div><div class="ctl"><input class="rng" type="range" data-rng="${name}" min="${r[0]}" max="${r[1]}" step="${r[2]}" value="${val}" aria-label="${title}"><span class="val">${FMT[name](val)}</span></div></div>`;
-  const items = s ? [["Total memory", s.total], ["In use", s.inUse], ["Available (free + standby)", s.available], ["Standby list (cached)", s.standby], ["Modified", s.modified], ["Free", s.free]] : [];
+  const items = s ? [["แรมทั้งหมด", s.total], ["กำลังใช้งาน", s.inUse], ["ใช้ได้ (ว่าง + standby)", s.available], ["Standby list (แคช)", s.standby], ["Modified (รอเขียนลงดิสก์)", s.modified], ["ว่าง", s.free]] : [];
   const left = `<section class="mcard"><h3>Memory now</h3>${s ? `<div class="mbar"><i class="u" style="width:${s.pctUse}%"></i><i class="sb" style="width:${s.pctStandby}%"></i><i class="fr" style="width:${s.pctFree}%"></i></div>
-      <div class="mleg"><span style="--c:var(--accent-dark)">In use</span><span style="--c:#6b93ee">Standby list</span><span style="--c:#b4caf7">Free</span></div>
-      <div class="hwgrid">${items.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join("")}</div>` : `<p class="muted">Reading memory...</p>`}
-      <p class="mhelp"><b>Standby list:</b> data Windows keeps in memory so programs open faster. It is given back to programs on demand, so a full list is normal and usually harmless. Cleaning helps only when a game or app stutters while the list is large and free memory is low. Right after a clean, programs may load a little slower while Windows fills the cache again.</p></section>`;
+      <div class="mleg"><span style="--c:var(--accent-dark)">กำลังใช้งาน</span><span style="--c:#6b93ee">Standby list</span><span style="--c:#b4caf7">ว่าง</span></div>
+      <div class="hwgrid">${items.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join("")}</div>` : `<p class="muted">กำลังอ่านข้อมูลแรม...</p>`}
+      <p class="mhelp"><b>Standby list (รายการแคช):</b> ข้อมูลที่ Windows เก็บค้างไว้ในแรมเพื่อให้เปิดโปรแกรมได้เร็วขึ้น เมื่อโปรแกรมไหนต้องการแรม Windows จะคืนพื้นที่ส่วนนี้ให้เอง ดังนั้นรายการเต็มเป็นเรื่องปกติและมักไม่เป็นอันตราย การล้างจะช่วยเฉพาะตอนที่เกมหรือโปรแกรมกระตุกขณะที่รายการนี้ใหญ่และแรมว่างเหลือน้อย หลังล้างใหม่ๆ โปรแกรมอาจเปิดช้าลงเล็กน้อย เพราะ Windows ต้องสะสมแคชใหม่</p></section>`;
   const right = `<section class="mcard"><div class="mhead"><h3>Automatic cleaning</h3>
-      <span class="chip tone-${M.on ? "good" : "muted"}">${ico(M.on ? "check" : "ring", "tone-" + (M.on ? "good" : "muted"))}${M.on ? "On · cleaned " + M.purges + " time(s)" : "Off"}</span>
+      <span class="chip tone-${M.on ? "good" : "muted"}">${ico(M.on ? "check" : "ring", "tone-" + (M.on ? "good" : "muted"))}${M.on ? "On · ล้างแล้ว " + M.purges + " ครั้ง" : "Off"}</span>
       <button class="btn ${M.on ? "" : "primary"}" data-mem="auto" data-v="${M.on ? 0 : 1}">${M.on ? "Stop" : "Start"}</button></div>
-      <p class="mhelp" style="margin-top:0">When it is on, the program watches memory and cleans the standby list for you, but only when <b>both</b> conditions below are true at the same moment. Drag a slider to change a value; the new value is used right away. Your choices are remembered, and it keeps working while the program is in the tray.</p>
-      ${sl("poll", "Check every", "How often the program looks at memory", M.pollR, M.poll)}
-      ${sl("standby", "Condition 1: standby list is at least", "A small list is not worth cleaning", M.standbyR, M.standbyMb)}
-      ${sl("free", "Condition 2: free memory is at most", "Plenty of free memory means no need to clean", M.freeR, M.freeMb)}
-      ${s ? `<div class="now ${M.wouldClean ? "go" : ""}"><b>Right now:</b> standby list ${FMT.standby(M.standbyNowMb)} (needs at least ${FMT.standby(M.standbyMb)}) · free memory ${FMT.free(M.freeNowMb)} (needs at most ${FMT.free(M.freeMb)}) →
-        <b>${M.wouldClean ? "it would clean now" : "it would not clean"}</b></div>` : ""}</section>`;
+      <p class="mhelp" style="margin-top:0">เมื่อเปิดอยู่ โปรแกรมจะคอยดูแรมและล้าง standby list ให้เอง แต่จะล้างก็ต่อเมื่อ <b>ทั้งสองเงื่อนไข</b> ด้านล่างเป็นจริงพร้อมกัน เลื่อนแถบเพื่อปรับค่า ค่าใหม่ใช้ทันที โปรแกรมจำค่าที่คุณตั้งไว้ และทำงานต่อได้แม้ย่อเก็บอยู่ใน tray</p>
+      ${sl("poll", "ตรวจทุก", "ความถี่ที่โปรแกรมดูแรม", M.pollR, M.poll)}
+      ${sl("standby", "เงื่อนไขที่ 1: standby list ใหญ่ตั้งแต่", "ถ้ารายการเล็กอยู่แล้วไม่คุ้มที่จะล้าง", M.standbyR, M.standbyMb)}
+      ${sl("free", "เงื่อนไขที่ 2: แรมว่างเหลือไม่เกิน", "ถ้าแรมว่างยังเยอะ ก็ไม่จำเป็นต้องล้าง", M.freeR, M.freeMb)}
+      ${s ? `<div class="now ${M.wouldClean ? "go" : ""}"><b>ตอนนี้:</b> standby list ${FMT.standby(M.standbyNowMb)} (ต้องมีอย่างน้อย ${FMT.standby(M.standbyMb)}) · แรมว่าง ${FMT.free(M.freeNowMb)} (ต้องเหลือไม่เกิน ${FMT.free(M.freeMb)}) →
+        <b>${M.wouldClean ? "ถ้าเปิดอัตโนมัติไว้ ตอนนี้จะล้าง" : "ตอนนี้ยังไม่ล้าง"}</b></div>` : ""}</section>`;
   return `<div class="scroll"><div class="mem">${M.err ? `<p class="note-warn">${esc(M.err)}</p>` : ""}<div class="mcols">${left}${right}</div></div></div>`;
 }
 
 function memoryFooter() {
   const M = S.memory;
-  const status = M.note || "Ready";
+  const status = M.note || "พร้อมใช้งาน";
   const tone = M.err ? ["cross", "bad"] : ["ring", "muted"];
   return `<div class="foot"><div class="grow"></div><span class="chip tone-${tone[1]}">${ico(tone[0], "tone-" + tone[1])}${esc(status)}</span><button class="btn primary" data-act="mem_purge">Clean standby list now</button></div>`;
 }
 function boostPanel() {
   const B = S.boost;
   const row = x => `<label class="brow ${x.on ? "on" : ""}"><input class="cb" type="checkbox" data-boost="${x.id}" ${x.on ? "checked" : ""} aria-label="${esc(x.title)}">
-    <span class="n">${esc(x.title)}<span class="badge">${esc(x.effect)}</span>${x.restart ? `<span class="badge">Needs restart</span>` : ""}</span><span class="w">${esc(x.why)}</span></label>`;
+    <span class="n">${esc(x.title)}<span class="badge">${esc(x.effect)}</span>${x.restart ? `<span class="badge">ต้องรีสตาร์ทเครื่อง</span>` : ""}</span><span class="w">${esc(x.why)}</span></label>`;
   const rec = B.items.filter(x => x.rec), opt = B.items.filter(x => !x.rec);
   return `<div class="scroll"><div class="pw">
     ${B.err ? `<p class="note-warn">${esc(B.err)}</p>` : ""}
-    <section><div class="rec">${ico("info")}<div><b>Honest expectations</b><small>These settings remove small delays and background work. Expect smoother frame times and a snappier mouse, not a big jump in FPS. The biggest gains are the power plan (Power plan tab), a current graphics driver (Updates tab) and the in-game latency setting below. Every switch can be turned off again and puts back the exact value it replaced.</small></div></div></section>
+    <section><div class="rec">${ico("info")}<div><b>ควรคาดหวังแค่ไหน</b><small>ตัวเลือกเหล่านี้ช่วยตัดความหน่วงเล็กๆ และงานเบื้องหลัง ผลที่ได้คือภาพนิ่งขึ้นและเมาส์ตอบสนองดีขึ้น ไม่ได้ทำให้ FPS พุ่งขึ้นมาก ตัวที่ได้ผลมากกว่าคือแผนพลังงาน (แท็บ Power plan) ไดรเวอร์การ์ดจอรุ่นล่าสุด (แท็บ Updates) และการตั้งค่าลดหน่วงในเกมด้านล่าง ทุกสวิตช์ติ๊กออกได้ และจะคืนค่าเดิมที่เคยเป็นให้เป๊ะ</small></div></div></section>
     <section><h3>Recommended</h3>${rec.map(row).join("")}</section>
-    <section><h3>Optional: try it and keep it only if games feel better</h3>${opt.map(row).join("")}</section>
-    <section><h3>Lowest input lag: a setting inside the game</h3>
-      <p class="mhelp" style="margin-top:0"><b>${esc(B.tipName)}.</b> ${esc(B.tip)}${B.gpus ? ` <span class="muted">Graphics card found: ${esc(B.gpus)}.</span>` : ""}</p>
-      <p class="mhelp">Also: use full screen or borderless mode, and if the screen supports G-Sync or FreeSync, cap the frame rate a few FPS below the refresh rate.</p></section>
+    <section><h3>Optional</h3><p class="mhelp" style="margin:0 0 10px">ลองเปิดทีละตัว แล้วเก็บไว้เฉพาะตัวที่เล่นเกมแล้วรู้สึกดีขึ้น</p>${opt.map(row).join("")}</section>
+    <section><h3>Lowest input lag</h3>
+      <p class="mhelp" style="margin-top:0"><b>${esc(B.tipName)}</b> ${esc(B.tip)}${B.gpus ? ` <span class="muted">การ์ดจอที่ตรวจพบ: ${esc(B.gpus)}</span>` : ""}</p>
+      <p class="mhelp">เพิ่มเติม: เล่นแบบเต็มจอหรือ borderless และถ้าจอรองรับ G-Sync หรือ FreeSync ให้จำกัดเฟรมเรตต่ำกว่ารีเฟรชเรตของจอสัก 3–5 FPS</p></section>
   </div></div>`;
 }
 
 function boostFooter() {
   const B = S.boost;
-  return `<div class="foot"><button class="btn" data-act="boost_undo" ${B.canUndo ? "" : "disabled"}>Undo everything this program changed</button><div class="grow"></div>
-    <button class="btn primary" data-act="boost_rec" ${B.recDone ? "disabled" : ""}>${B.recDone ? "Recommended settings are on" : "Turn on recommended"}</button></div>`;
+  return `<div class="foot"><button class="btn" data-act="boost_undo" ${B.canUndo ? "" : "disabled"}>Undo all changes</button><div class="grow"></div>
+    <button class="btn primary" data-act="boost_rec" ${B.recDone ? "disabled" : ""}>${B.recDone ? "เปิดตัวแนะนำครบแล้ว" : "Turn on recommended"}</button></div>`;
 }
 
 function settingsPanel() {
   const T = S.settings;
   return `<div class="scroll"><div class="pw">
     <section><h3>Background</h3><div class="opts">
-      <label><input class="cb" type="checkbox" data-set="tray" ${T.tray ? "checked" : ""}><span>Keep running in the system tray when I close the window</span></label>
-      <label><input class="cb" type="checkbox" data-set="autostart" ${T.autostart ? "checked" : ""} ${T.autostart === null ? "disabled" : ""}><span>Start with Windows (opens in the tray, no window)</span></label></div>
+      <label><input class="cb" type="checkbox" data-set="tray" ${T.tray ? "checked" : ""}><span>ย่อเก็บไว้ที่ system tray เมื่อปิดหน้าต่าง (โปรแกรมยังทำงานต่อ)</span></label>
+      <label><input class="cb" type="checkbox" data-set="autostart" ${T.autostart ? "checked" : ""} ${T.autostart === null ? "disabled" : ""}><span>เปิดโปรแกรมพร้อม Windows (เริ่มใน tray ไม่เด้งหน้าต่าง)</span></label></div>
       ${T.err ? `<p class="note-warn" style="margin-top:12px">${esc(T.err)}</p>` : ""}
     </section>
     <section><h3>How it works</h3>
-      <p class="mhelp" style="margin-top:0">In the tray the window is closed and the program uses very little memory. Only the tray icon and, if you turned it on, automatic memory cleaning keep working. Double-click or left-click the tray icon to open the window. Right-click it for Open, Automatic memory cleaning, Clean standby list now and Quit.</p>
-      <p class="mhelp">Start with Windows adds a Windows scheduled task that runs at sign-in with administrator rights, so Windows does not ask for permission every time. Turning it off removes the task. It also turns on <b>Keep running in the system tray</b>, so closing the window does not quit the program.</p>
-      <p class="mhelp">Automatic memory cleaning and its limits are remembered, so it starts again by itself the next time the program runs.</p>
+      <p class="mhelp" style="margin-top:0">เมื่ออยู่ใน tray หน้าต่างจะถูกปิดและโปรแกรมใช้หน่วยความจำน้อยมาก ที่ยังทำงานอยู่คือไอคอน tray และการล้างแรมอัตโนมัติ (ถ้าคุณเปิดไว้) คลิกที่ไอคอน tray เพื่อเปิดหน้าต่างอีกครั้ง คลิกขวาจะมีเมนู Open, Automatic memory cleaning, Clean standby list now และ Quit</p>
+      <p class="mhelp">ตัวเลือก "เปิดโปรแกรมพร้อม Windows" จะสร้าง scheduled task ที่รันตอนลงชื่อเข้าใช้ด้วยสิทธิ์ผู้ดูแลระบบ Windows จึงไม่ถามขออนุญาตทุกครั้ง ถ้าปิดตัวเลือกนี้ task จะถูกลบ และตัวเลือกนี้จะเปิด <b>ย่อเก็บไว้ที่ system tray</b> ให้ด้วย เพื่อให้การปิดหน้าต่างไม่ทำให้โปรแกรมหยุดทำงาน</p>
+      <p class="mhelp">ค่าการล้างแรมอัตโนมัติและเงื่อนไขที่ตั้งไว้ถูกจดจำ โปรแกรมจะเริ่มทำงานตามนั้นเองในครั้งถัดไป</p>
     </section></div></div>`;
 }
 
@@ -358,13 +360,13 @@ function body() {
     S.banner.buttons.map(x => `<button class="btn ${x.primary?'primary':''} ${x.link?'link':''}" data-banner="${x.id}" ${x.enabled?'':'disabled'}>${esc(x.text)}</button>`).join('')}</div></div>`;
   if (!S.rows.length && !S.infos.length) {
     let c, t, p;
-    if (S.busy) { c='accent'; t='Scanning this PC'; p='This can take about 1–2 minutes.'; }
-    else if (S.scanned) { c='good'; t='Drivers are up to date'; p='No newer drivers were found in the sources checked.'; }
-    else { c=''; t='Scan this PC for driver updates'; p='Scan finds newer drivers, you review the list, then install.\nIt takes about 1–2 minutes and needs an internet connection.'; }
+    if (S.busy) { c='accent'; t='กำลังสแกนเครื่อง'; p='ใช้เวลาประมาณ 1–2 นาที'; }
+    else if (S.scanned) { c='good'; t='ไดรเวอร์เป็นรุ่นล่าสุดแล้ว'; p='ไม่พบไดรเวอร์ที่ใหม่กว่าในแหล่งที่ตรวจ'; }
+    else { c=''; t='สแกนหาไดรเวอร์ใหม่ให้เครื่องนี้'; p='โปรแกรมจะหาไดรเวอร์ที่ใหม่กว่า ให้คุณดูรายการก่อน แล้วค่อยติดตั้ง\nใช้เวลาประมาณ 1–2 นาที และต้องต่อเน็ต'; }
     return b + `<div class="empty ${c}"><h2>${t}</h2><p>${p}</p></div>`;
   }
-  const rp = S.report.available && S.report.count > 0 ? `<div class="banner info" style="border-top:1px solid var(--border);border-bottom:0"><div class="t">${S.report.count} device(s) have no driver in any source. You can send their hardware IDs (no personal data) so a driver can be added.</div>
-    <div class="btns"><button class="btn" data-act="report" ${S.report.done||S.report.sending||S.busy?"disabled":""}>${S.report.done?"Reported":(S.report.sending?"Sending...":"Report these devices")}</button></div></div>` : "";
+  const rp = S.report.available && S.report.count > 0 ? `<div class="banner info" style="border-top:1px solid var(--border);border-bottom:0"><div class="t">มีอุปกรณ์ ${S.report.count} ชิ้นที่ไม่พบไดรเวอร์ในแหล่งใดเลย คุณส่ง Hardware ID ของอุปกรณ์เหล่านี้ (ไม่มีข้อมูลส่วนตัว) เพื่อให้เราเพิ่มไดรเวอร์ให้ได้</div>
+    <div class="btns"><button class="btn" data-act="report" ${S.report.done||S.report.sending||S.busy?"disabled":""}>${S.report.done?"ส่งแล้ว":(S.report.sending?"กำลังส่ง...":"Report these devices")}</button></div></div>` : "";
   return b + `<div class="scroll">${updatesTable()}</div>` + rp;
 }
 
@@ -385,7 +387,7 @@ function powerFooter() {
 }
 
 function footer() {
-  if (S.tab === "settings") return `<div class="foot"><div class="grow"></div><span>Changes are saved at once</span></div>`;
+  if (S.tab === "settings") return `<div class="foot"><div class="grow"></div><span>บันทึกการเปลี่ยนแปลงทันที</span></div>`;
   if (S.tab === "memory") return memoryFooter();
   if (S.tab === "boost") return boostFooter();
   if (S.tab === "power") return powerFooter();
@@ -396,7 +398,7 @@ function footer() {
   else if (showSel) right = `<button class="btn primary" data-act="install" ${S.selN>0?'':'disabled'}>${S.selN>0 ? `Install ${S.selN} selected` : 'Install'}</button>`;
   return `<div class="foot">
     ${showSel ? `<label><input class="cb" type="checkbox" data-all ${S.allTicked?'checked':''}><span class="cnt">${S.selN} of ${S.rows.length} selected${S.selSize && S.selN ? ' · ' + esc(S.selSize) : ''}</span></label><span class="sep"></span>` : ''}
-    <label title="A restore point lets you roll the PC back if a new driver causes problems.\nWindows allows one every 24 hours; if it cannot be created the program logs it and continues."><input class="cb" type="checkbox" data-rp ${S.restorePoint?'checked':''} ${busy?'disabled':''}><span style="${busy?'color:var(--off-text)':''}">Create a restore point first</span></label>
+    <label title="จุดคืนค่าระบบช่วยให้ย้อนเครื่องกลับได้ ถ้าไดรเวอร์ใหม่ทำให้เกิดปัญหา\nWindows สร้างได้วันละ 1 ครั้ง ถ้าสร้างไม่ได้ โปรแกรมจะบันทึกไว้ใน Log แล้วทำงานต่อ"><input class="cb" type="checkbox" data-rp ${S.restorePoint?'checked':''} ${busy?'disabled':''}><span style="${busy?'color:var(--off-text)':''}">สร้างจุดคืนค่าระบบ (restore point) ก่อนติดตั้ง</span></label>
     <div class="grow"></div>${right}</div>`;
 }
 
@@ -416,9 +418,9 @@ function render() {
     <div class="tabs">${tabs.map(([k,n]) => `<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}<div class="pills">${noScan ? '' : pills()}</div></div>
     <div class="main"><div class="card">${body()}</div></div>
     ${footer()}
-    ${S.power.confirmReset ? `<div class="shade"><div class="dlg"><h3>Reset to Windows default</h3><p>This restores the Windows built-in power plans and removes any custom plans.</p><p>Your custom plans are exported to a backup folder first, and nothing is removed if that backup fails.</p>
+    ${S.power.confirmReset ? `<div class="shade"><div class="dlg"><h3>Reset to Windows default</h3><p>คืนแผนพลังงานมาตรฐานของ Windows และลบแผนที่สร้างเองออก</p><p>แผนที่สร้างเองจะถูกสำรองลงโฟลเดอร์ก่อน ถ้าสำรองไม่สำเร็จจะไม่ลบอะไรเลย</p>
       <div class="acts"><button class="btn" data-act="power_reset_no">Cancel</button><button class="btn primary" data-act="power_reset_yes">Reset</button></div></div></div>` : ""}
-    ${S.confirm ? `<div class="shade"><div class="dlg"><h3>Roll back driver</h3><p>Roll back ${esc(S.confirm.device)} to version ${esc(S.confirm.version)}?</p><p>The driver it uses now will be removed from this PC. A restart may be needed.</p>
+    ${S.confirm ? `<div class="shade"><div class="dlg"><h3>Roll back driver</h3><p>ย้อน ${esc(S.confirm.device)} กลับเป็นเวอร์ชัน ${esc(S.confirm.version)} ใช่ไหม</p><p>ไดรเวอร์ที่ใช้อยู่ตอนนี้จะถูกถอดออกจากเครื่อง และอาจต้องรีสตาร์ทเครื่อง</p>
       <div class="acts"><button class="btn" data-act="rollbackNo">Cancel</button><button class="btn primary" data-act="rollbackYes">Roll back</button></div></div></div>` : ''}`;
   const sc2 = document.querySelector('.scroll'); if (sc2) sc2.scrollTop = top;
   if (focused) { const f = document.querySelector('[data-rng="' + focused + '"]'); if (f) f.focus(); }

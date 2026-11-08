@@ -57,36 +57,36 @@ pub struct Tweak {
 macro_rules! k { ($s:literal) => { concat!("HKCU\\", $s) }; }
 
 pub const TWEAKS: &[Tweak] = &[
-    Tweak { id: "mouse", title: "Turn off mouse acceleration", effect: "Input", restart: false, recommended: true,
-        why: "Turns off \"Enhance pointer precision\". The cursor then moves the same distance for the same hand movement, so aim is consistent.",
+    Tweak { id: "mouse", title: "Turn off mouse acceleration", effect: "ลดหน่วงเมาส์", restart: false, recommended: true,
+        why: "ปิด \"Enhance pointer precision\" ทำให้เคอร์เซอร์ขยับระยะเท่าเดิมทุกครั้งเมื่อขยับมือเท่ากัน เล็งแม่นและจำกล้ามเนื้อได้ เหมาะกับเกมยิง ถ้าใช้ทำงานทั่วไปแล้วรู้สึกว่าเมาส์ช้าลง ให้ติ๊กออก",
         targets: &[
             Target { key: k!("Control Panel\\Mouse"), name: "MouseSpeed", on: Val::S("0"), off: Val::S("1") },
             Target { key: k!("Control Panel\\Mouse"), name: "MouseThreshold1", on: Val::S("0"), off: Val::S("6") },
             Target { key: k!("Control Panel\\Mouse"), name: "MouseThreshold2", on: Val::S("0"), off: Val::S("10") },
         ] },
-    Tweak { id: "gamemode", title: "Game Mode on", effect: "Small", restart: false, recommended: true,
-        why: "Windows lowers the priority of background work and postpones driver and update installs while a game runs.",
+    Tweak { id: "gamemode", title: "Game Mode on", effect: "ผลเล็กน้อย", restart: false, recommended: true,
+        why: "บอก Windows ว่ากำลังเล่นเกม ให้ลดความสำคัญของงานเบื้องหลัง และเลื่อนการติดตั้งไดรเวอร์/อัปเดตไปก่อน กันไม่ให้เครื่องกระตุกกลางเกม",
         targets: &[Target { key: k!("Software\\Microsoft\\GameBar"), name: "AutoGameModeEnabled", on: Val::D(1), off: Val::Del }] },
-    Tweak { id: "dvr", title: "Turn off background game recording", effect: "Small to medium", restart: false, recommended: true,
-        why: "Stops Xbox Game Bar from recording in the background. The recording takes GPU and disk time even when you never use it. Manual capture with Win+G still works.",
+    Tweak { id: "dvr", title: "Turn off background game recording", effect: "ผลเล็กถึงปานกลาง", restart: false, recommended: true,
+        why: "หยุด Xbox Game Bar ไม่ให้แอบอัดภาพเกมเบื้องหลัง ซึ่งกินการ์ดจอและดิสก์ตลอดแม้คุณไม่เคยใช้ การกด Win+G เพื่ออัดภาพเองยังใช้ได้ตามปกติ",
         targets: &[
             Target { key: k!("System\\GameConfigStore"), name: "GameDVR_Enabled", on: Val::D(0), off: Val::D(1) },
             Target { key: k!("Software\\Microsoft\\Windows\\CurrentVersion\\GameDVR"), name: "AppCaptureEnabled", on: Val::D(0), off: Val::D(1) },
         ] },
-    Tweak { id: "windowed", title: "Optimizations for windowed games", effect: "Medium (windowed and borderless games)", restart: false, recommended: true,
-        why: "DirectX 10 and 11 games in a window or borderless mode use the same low-delay presentation as full screen. Takes effect the next time a game starts.",
+    Tweak { id: "windowed", title: "Optimizations for windowed games", effect: "ผลปานกลางในเกมแบบหน้าต่าง/borderless", restart: false, recommended: true,
+        why: "เกม DirectX 10 และ 11 ที่เล่นแบบหน้าต่างหรือ borderless จะแสดงภาพแบบเดียวกับเต็มจอ หน่วงน้อยลง มีผลเมื่อเปิดเกมครั้งถัดไป",
         targets: &[Target { key: k!("Software\\Microsoft\\DirectX\\UserGpuPreferences"), name: "DirectXUserGlobalSettings", on: Val::Add("SwapEffectUpgradeEnable=1;"), off: Val::Strip("SwapEffectUpgradeEnable=1;") }] },
-    Tweak { id: "effects", title: "Turn off transparency and taskbar animation", effect: "Low-end PCs", restart: false, recommended: false,
-        why: "Fewer visual effects, so older PCs and weak graphics feel lighter. The look of Windows changes a little.",
+    Tweak { id: "effects", title: "Turn off transparency and taskbar animation", effect: "เหมาะกับเครื่องสเปกต่ำ", restart: false, recommended: false,
+        why: "ตัดความโปร่งใสและแอนิเมชันของแถบงาน เครื่องเก่าหรือการ์ดจอไม่แรงจะลื่นขึ้น หน้าตา Windows จะเปลี่ยนไปเล็กน้อย",
         targets: &[
             Target { key: k!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"), name: "EnableTransparency", on: Val::D(0), off: Val::D(1) },
             Target { key: k!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced"), name: "TaskbarAnimations", on: Val::D(0), off: Val::D(1) },
         ] },
-    Tweak { id: "hags", title: "Hardware-accelerated GPU scheduling", effect: "Depends on the graphics card", restart: true, recommended: false,
-        why: "The graphics card schedules its own work. Helps some newer cards (RTX 40 and newer, RX 7000 and newer) and can make older ones stutter. Try it and keep it only if games feel better.",
+    Tweak { id: "hags", title: "Hardware-accelerated GPU scheduling", effect: "ขึ้นกับรุ่นการ์ดจอ", restart: true, recommended: false,
+        why: "ให้การ์ดจอจัดคิวงานของตัวเองแทน CPU การ์ดรุ่นใหม่ (RTX 40 / RX 7000 ขึ้นไป) อาจดีขึ้น แต่การ์ดรุ่นเก่าอาจกระตุกมากขึ้น ลองเล่นเกมเทียบดู ถ้าแย่ลงให้ติ๊กออกแล้วรีสตาร์ทอีกครั้ง",
         targets: &[Target { key: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers", name: "HwSchMode", on: Val::D(2), off: Val::Del }] },
-    Tweak { id: "timer", title: "System-wide fine timer", effect: "Only some games", restart: true, recommended: false,
-        why: "Gives every program the fine timer a game asked for (older games that run capped near 64 FPS). Uses a little more power. Games that set their own timer already ignore this.",
+    Tweak { id: "timer", title: "System-wide fine timer", effect: "ช่วยเฉพาะบางเกม", restart: true, recommended: false,
+        why: "ให้ทุกโปรแกรมใช้นาฬิกาจับเวลาแบบละเอียดตามที่เกมขอ ช่วยเกมเก่าที่ FPS ติดเพดานราว 64 กินไฟเพิ่มเล็กน้อย เกมที่ตั้ง timer ของตัวเองอยู่แล้วจะไม่ได้ประโยชน์เพิ่ม",
         targets: &[Target { key: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\kernel", name: "GlobalTimerResolutionRequests", on: Val::D(1), off: Val::Del }] },
 ];
 
@@ -190,10 +190,10 @@ pub fn gpu_names() -> Vec<String> {
 /// The in-game setting that lowers input lag the most, for this card.
 pub fn latency_tip(gpus: &[String]) -> (&'static str, &'static str) {
     let all = gpus.join(" ").to_lowercase();
-    if all.contains("nvidia") || all.contains("geforce") { ("NVIDIA Reflex", "In games that have it, set NVIDIA Reflex to On (or On + Boost). It is the biggest input-lag reduction you can get, and it is a setting inside the game.") }
-    else if all.contains("radeon") || all.contains("amd") { ("AMD Anti-Lag", "Turn on Anti-Lag in AMD Software (Gaming, Graphics) and, in games that offer it, Anti-Lag 2 in the game's own settings.") }
-    else if all.contains("intel") { ("Low-latency mode", "Keep the Intel graphics driver up to date and, in games that offer a low-latency or Reflex-style option, turn it on.") }
-    else { ("Low-latency mode", "In games that offer a low-latency option, turn it on.") }
+    if all.contains("nvidia") || all.contains("geforce") { ("NVIDIA Reflex", "ในเกมที่มีตัวเลือกนี้ ให้ตั้ง NVIDIA Reflex เป็น On (หรือ On + Boost) เป็นตัวที่ลดความหน่วงของการควบคุมได้มากที่สุด แต่ต้องไปตั้งในเกม โปรแกรมนี้ตั้งแทนไม่ได้") }
+    else if all.contains("radeon") || all.contains("amd") { ("AMD Anti-Lag", "เปิด Anti-Lag ในโปรแกรม AMD Software (หัวข้อ Gaming, Graphics) และในเกมที่มีตัวเลือก ให้เปิด Anti-Lag 2 ในเมนูตั้งค่าของเกมด้วย") }
+    else if all.contains("intel") { ("Low-latency mode", "อัปเดตไดรเวอร์การ์ดจอ Intel ให้ใหม่อยู่เสมอ และในเกมที่มีตัวเลือกลดความหน่วง (low latency) ให้เปิดไว้") }
+    else { ("Low-latency mode", "ในเกมที่มีตัวเลือกลดความหน่วง (low latency) ให้เปิดไว้") }
 }
 
 #[cfg(test)]
