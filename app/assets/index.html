@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TierS Driver Manage</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --navy:#0f2547; --page:#f4f6f9; --border:#dadfe7; --line:#e8ecf2; --text:#1b2733; --muted:#4e5a6e;
+  --accent:#2563eb; --accent-dark:#1d4ed8; --accent-soft:#eaf1ff;
+  --good:#117436; --good-soft:#e8f5ec; --warn:#9e4606; --warn-soft:#fef3e2; --bad:#b91c1c; --bad-soft:#fdecec;
+  --off:#e2e8f0; --off-text:#64748b; --hover:#f3f6fb;
+  --font:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI","Leelawadee UI",system-ui,sans-serif;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; height:100%; }
+body { font:14px/1.4 var(--font); color:var(--text); background:var(--page); display:flex; flex-direction:column; overflow:hidden; user-select:none; -webkit-user-select:none; cursor:default; }
+svg { display:block; flex:none; }
+.ico { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)} .accent{color:var(--accent)} .muted{color:var(--muted)}
+
+/* top bar */
+.top { height:56px; background:#fff; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 14px; gap:12px; flex:none; }
+.top img { width:34px; height:34px; }
+.top h1 { margin:0; font-size:18px; font-weight:600; color:var(--navy); }
+.top .sep { width:1px; height:20px; background:var(--border); }
+.top .machine { color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.top .grow { flex:1; }
+.top .ver { color:var(--muted); font-size:13px; }
+
+/* buttons */
+.btn { font:600 13.5px var(--font); border-radius:6px; border:1px solid #aabeeb; background:#fff; color:var(--accent-dark); padding:0 16px; height:34px; cursor:pointer; white-space:nowrap; }
+.btn:hover:not(:disabled) { background:var(--accent-soft); }
+.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-size:14.5px; }
+.btn.primary:hover:not(:disabled) { background:var(--accent-dark); }
+.btn.link { border-color:transparent; background:transparent; padding:0 10px; }
+.btn:disabled { background:var(--off); border-color:var(--off); color:var(--off-text); cursor:default; }
+.btn.link:disabled { background:transparent; border-color:transparent; }
+.btn:focus-visible, .cb:focus-visible, .tab:focus-visible, .pill:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+/* toolbar */
+.tool { padding:14px 20px 0; flex:none; }
+.tool .row { display:flex; align-items:center; gap:10px; height:40px; }
+.tool .btn.primary { height:40px; width:168px; }
+.status { display:flex; align-items:center; gap:7px; font-size:14px; }
+.bar { height:3px; margin-top:10px; background:transparent; overflow:hidden; }
+.bar i { display:block; height:100%; background:var(--accent); }
+.bar.indet i { width:30%; animation:slide 1.2s ease-in-out infinite; }
+@keyframes slide { 0%{margin-left:-30%} 100%{margin-left:100%} }
+
+/* tabs */
+.tabs { display:flex; align-items:flex-end; padding:0 20px; flex:none; margin-top:0; }
+.tab { height:40px; padding:0 14px; font:600 14.5px var(--font); color:var(--muted); background:none; border:0; cursor:pointer; position:relative; }
+.tab:hover { color:var(--text); }
+.tab.on { color:var(--accent); }
+.tab.on::after { content:""; position:absolute; left:8px; right:8px; bottom:0; height:3px; border-radius:2px 2px 0 0; background:var(--accent); }
+.pills { margin-left:auto; display:flex; gap:8px; align-self:center; padding-bottom:4px; }
+.pill { display:flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--border); border-radius:14px; padding:3px 10px; font:600 13px var(--font); color:var(--text); cursor:pointer; }
+.pill:hover { border-color:var(--accent); }
+.pill .ico { width:16px; height:16px; }
+
+/* card */
+.main { flex:1; min-height:0; padding:0 20px 14px; display:flex; }
+.card { flex:1; min-width:0; background:#fff; border:1px solid var(--border); border-radius:0 8px 8px 8px; display:flex; flex-direction:column; overflow:hidden; }
+.banner { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--border); flex:none; }
+.banner .t { flex:1; min-width:0; }
+.banner.info{background:var(--accent-soft)} .banner.info .ico{color:var(--accent)}
+.banner.good{background:var(--good-soft)} .banner.good .ico{color:var(--good)}
+.banner.warn{background:var(--warn-soft)} .banner.warn .ico{color:var(--warn)}
+.banner.bad{background:var(--bad-soft)} .banner.bad .ico{color:var(--bad)}
+.banner .btns { display:flex; flex-direction:row-reverse; align-items:center; gap:6px; }
+.scroll { flex:1; min-height:0; overflow:auto; }
+
+/* table */
+.tr { display:grid; align-items:center; min-height:46px; border-bottom:1px solid var(--line); padding-right:8px; }
+.tr:not(.th):hover { background:var(--hover); }
+.tr.sel { background:var(--accent-soft); }
+.th { position:sticky; top:0; background:#fff; min-height:34px; z-index:1; border-bottom:1px solid var(--border); font:600 12.5px var(--font); color:var(--muted); }
+.tr > div { padding:0 4px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tr > div.wrap { white-space:normal; font-size:12.5px; font-weight:600; line-height:1.3; padding:4px; }
+.g-up { grid-template-columns:44px 32px minmax(200px,1fr) 112px 124px 92px 72px minmax(190px,300px); }
+.g-up.res { grid-template-columns:14px 32px minmax(200px,1fr) 112px 124px 92px 72px minmax(190px,300px); }
+.g-in { grid-template-columns:44px minmax(200px,1fr) 124px 170px 130px 100px 120px; min-height:40px; }
+.g-bk { grid-template-columns:190px minmax(220px,1fr) 170px 150px; min-height:42px; }
+.g-bk > div:first-child, .g-in > div:first-child { padding-left:14px; }
+.tone-good{color:var(--good)} .tone-bad{color:var(--bad)} .tone-warn{color:var(--warn)} .tone-accent{color:var(--accent)} .tone-muted{color:var(--muted)}
+.s { font-weight:600; }
+.ic { display:flex; justify-content:center; }
+
+/* checkbox */
+.cb { appearance:none; -webkit-appearance:none; width:18px; height:18px; margin:0 0 0 12px; border:1.5px solid #94a3b8; border-radius:4px; background:#fff; cursor:pointer; position:relative; }
+.cb:hover:not(:disabled) { border-color:var(--accent); }
+.cb:checked { background:var(--accent); border-color:var(--accent); }
+.cb:checked::after { content:""; position:absolute; left:5px; top:1px; width:4px; height:9px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
+.cb:disabled { opacity:.5; cursor:default; }
+
+/* empty + log */
+.empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px 20px 60px; }
+.empty h2 { margin:0 0 6px; font-size:22px; font-weight:600; color:var(--navy); }
+.empty p { margin:0; color:var(--muted); font-size:14.5px; white-space:pre-line; }
+.empty.good h2 { color:var(--good); } .empty.accent h2 { color:var(--accent); }
+.log { margin:0; padding:14px; font:12.5px/1.5 Consolas,"Cascadia Mono",monospace; white-space:pre-wrap; user-select:text; -webkit-user-select:text; cursor:text; }
+
+/* footer */
+.foot { height:66px; background:#fff; border-top:1px solid var(--border); display:flex; align-items:center; padding:0 20px; gap:12px; flex:none; }
+.foot label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+.foot .cb { margin:0; }
+.foot .sep { width:1px; height:20px; background:var(--border); margin:0 6px; }
+.foot .grow { flex:1; }
+.foot .btn.primary { height:42px; min-width:200px; }
+.cnt { color:var(--muted); }
+
+/* modal */
+.shade { position:fixed; inset:0; background:rgba(15,37,71,.35); display:flex; align-items:center; justify-content:center; z-index:10; }
+.dlg { width:440px; background:#fff; border-radius:10px; padding:22px; box-shadow:0 12px 40px rgba(15,37,71,.3); }
+.dlg h3 { margin:0 0 8px; font-size:17px; color:var(--navy); }
+.dlg p { margin:0 0 6px; color:var(--muted); }
+.dlg .acts { margin-top:18px; display:flex; justify-content:flex-end; gap:8px; }
+</style>
+</head>
+<body oncontextmenu="return false">
+<div id="app"></div>
+<script>
+const I = {
+  check:'<path d="M4 12.5l5 5L20 6.5"/>', cross:'<path d="M6 6l12 12M18 6L6 18"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.6" r=".6" fill="currentColor"/>',
+  up:'<path d="M12 20V5M6 10.5l6-6 6 6"/>', dot:'<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>', ring:'<circle cx="12" cy="12" r="7"/>',
+  minus:'<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>', shield:'<path d="M12 3l7.5 3v6c0 4.2-3 7.4-7.5 9-4.5-1.6-7.5-4.8-7.5-9V6z"/><path d="M8.8 12l2.3 2.3 4.2-4.6"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>'
+};
+const ico = (n, cls='') => n ? `<svg class="ico ${cls}" viewBox="0 0 24 24">${I[n]}</svg>` : '';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const send = (cmd, o={}) => window.ipc.postMessage(JSON.stringify({cmd, ...o}));
+let S = null;
+
+const stateIcon = {ok:['check','good'], fail:['cross','bad'], skip:['minus','warn'], dl:['dot','accent'], inst:['dot','accent'], wait:['ring','muted']};
+
+function updatesTable() {
+  const res = S.mode !== 'review';
+  let h = `<div class="tr th g-up ${res?'res':''}"><div></div><div></div><div>Driver / device</div><div>Type</div><div>Source</div><div>Date</div><div>Size</div><div>${res?'Status':'Notes'}</div></div>`;
+  for (const r of S.rows) {
+    const [ic, tone] = stateIcon[r.state] || (r.system ? ['shield','warn'] : [null,null]);
+    h += `<div class="tr g-up ${res?'res':''}">
+      <div>${res ? '' : `<input class="cb" type="checkbox" data-tick="${r.i}" ${r.ticked?'checked':''}>`}</div>
+      <div class="ic">${ico(ic, tone)}</div>
+      <div title="${esc(r.title)}">${esc(r.title)}</div><div>${esc(r.cls)}</div><div>${esc(r.source)}</div><div>${esc(r.date)}</div><div>${esc(r.size)}</div>
+      <div class="wrap tone-${r.tone}" title="${esc(r.tip)}">${esc(r.note)}</div></div>`;
+  }
+  for (const d of S.infos) {
+    h += `<div class="tr g-up"><div></div><div class="ic">${ico('info','muted')}</div>
+      <div title="${esc(d.name + '\nHardware ID: ' + d.hwid + '\nNo driver was found in Windows Update or the Microsoft Catalog. Try the manufacturer\'s website using this Hardware ID.')}">${esc(d.name)}</div>
+      <div>${esc(d.cls)}</div><div>—</div><div></div><div></div><div class="s tone-muted">No driver found</div></div>`;
+  }
+  return h;
+}
+
+function installedTable() {
+  let h = `<div class="tr th g-in"><div></div><div>Device</div><div>Type</div><div>Manufacturer</div><div>Version</div><div>Driver date</div><div>Status</div></div>`;
+  for (const d of S.inventory) {
+    h += `<div class="tr g-in"><div>${d.old ? ico('clock','warn') : ''}</div><div title="${esc(d.name)}">${esc(d.name)}</div><div>${esc(d.cls)}</div><div>${esc(d.maker)}</div><div>${esc(d.version)}</div><div>${esc(d.date)}</div>
+      <div class="s ${d.old?'tone-warn':'tone-muted'}">${d.old ? `Old (${d.age} yr)` : (d.known ? '<span style="font-weight:400">OK</span>' : '')}</div></div>`;
+  }
+  return h;
+}
+
+function backupsTable() {
+  if (!S.backups.length) return `<div class="empty"><p>No backups yet\nBefore a driver is replaced, the one it replaces is saved here so you can roll back.</p></div>`;
+  let h = `<div class="tr th g-bk"><div>Backed up</div><div>Device</div><div>Saved version</div><div>Backup</div></div>`;
+  S.backups.forEach((b, i) => { h += `<div class="tr g-bk ${S.selectedBackup===i?'sel':''}" data-pick="${i}" style="cursor:pointer"><div>${esc(b.time)}</div><div>${esc(b.device)}</div><div>${esc(b.version)}</div><div>${esc(b.kind)}</div></div>`; });
+  return h;
+}
+
+function body() {
+  if (S.tab === 'installed') return `<div class="scroll">${installedTable()}</div>`;
+  if (S.tab === 'backups') return `<div class="scroll">${backupsTable()}</div>`;
+  if (S.tab === 'log') return `<div class="scroll"><pre class="log">${esc(S.log)}</pre></div>`;
+  let b = '';
+  if (S.banner) b = `<div class="banner ${S.banner.kind}">${ico({info:'dot',good:'check',warn:'info',bad:'cross'}[S.banner.kind])}<div class="t">${esc(S.banner.text)}</div><div class="btns">${
+    S.banner.buttons.map(x => `<button class="btn ${x.primary?'primary':''} ${x.link?'link':''}" data-banner="${x.id}" ${x.enabled?'':'disabled'}>${esc(x.text)}</button>`).join('')}</div></div>`;
+  if (!S.rows.length && !S.infos.length) {
+    let c, t, p;
+    if (S.busy) { c='accent'; t='Scanning this PC'; p='This can take about 1–2 minutes.'; }
+    else if (S.scanned) { c='good'; t='Drivers are up to date'; p='No newer drivers were found in the sources checked.'; }
+    else { c=''; t='Scan this PC for driver updates'; p='Scan finds newer drivers, you review the list, then install.\nIt takes about 1–2 minutes and needs an internet connection.'; }
+    return b + `<div class="empty ${c}"><h2>${t}</h2><p>${p}</p></div>`;
+  }
+  return b + `<div class="scroll">${updatesTable()}</div>`;
+}
+
+function pills() {
+  const p = S.pills;
+  if (!S.scanned) return `<button class="pill" data-tab="installed">${ico('ring','muted')}Not scanned yet</button>`;
+  const miss = p.missing > 0 ? ['info','bad',`${p.missing} without a driver`] : ['check','good','No problem devices'];
+  return `<button class="pill" data-tab="installed">${ico('dot','muted')}${p.drivers} drivers</button>
+    <button class="pill" data-tab="updates">${ico(p.upIcon, p.upTone)}${esc(p.upText)}</button>
+    <button class="pill" data-tab="log">${ico(miss[0], miss[1])}${miss[2]}</button>`;
+}
+
+function footer() {
+  const busy = S.busy;
+  const showSel = S.tab === 'updates' && S.mode === 'review' && S.rows.length && !busy;
+  let right = '';
+  if (S.tab === 'backups') right = `<button class="btn primary" data-act="rollback" ${S.selectedBackup!=null && !busy ? '' : 'disabled'}>Roll back selected</button>`;
+  else if (showSel) right = `<button class="btn primary" data-act="install" ${S.selN>0?'':'disabled'}>${S.selN>0 ? `Install ${S.selN} selected` : 'Install'}</button>`;
+  return `<div class="foot">
+    ${showSel ? `<label><input class="cb" type="checkbox" data-all ${S.allTicked?'checked':''}><span class="cnt">${S.selN} of ${S.rows.length} selected${S.selSize && S.selN ? ' · ' + esc(S.selSize) : ''}</span></label><span class="sep"></span>` : ''}
+    <label title="A restore point lets you roll the PC back if a new driver causes problems.\nWindows allows one every 24 hours; if it cannot be created the program logs it and continues."><input class="cb" type="checkbox" data-rp ${S.restorePoint?'checked':''} ${busy?'disabled':''}><span style="${busy?'color:var(--off-text)':''}">Create a restore point first</span></label>
+    <div class="grow"></div>${right}</div>`;
+}
+
+function render() {
+  if (!S) return;
+  const sc = document.querySelector('.scroll'); const top = sc ? sc.scrollTop : 0;
+  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['log','Log']];
+  const prog = S.busy ? (S.progress == null ? '<div class="bar indet"><i></i></div>' : `<div class="bar"><i style="width:${Math.round(S.progress*100)}%"></i></div>`) : '<div class="bar"></div>';
+  document.getElementById('app').style.display = 'contents';
+  document.getElementById('app').innerHTML = `
+    <div class="top"><img src="__LOGO__" alt=""><h1>TierS Driver Manage</h1><span class="sep"></span><span class="machine" title="${esc(S.machine)}">${esc(S.machine)}</span><span class="grow"></span>
+      ${S.update ? `<button class="btn" data-act="update" ${S.busy?'disabled':''} title="${esc(S.update.notes)}">Update to ${esc(S.update.version)}</button>` : ''}<span class="ver">v${esc(S.version)}</span></div>
+    <div class="tool"><div class="row"><button class="btn primary" data-act="scan" ${S.busy?'disabled':''} title="F5">Scan drivers</button>
+      <span class="status tone-${S.statusTone}">${ico(S.statusIcon, 'tone-'+S.statusTone)}${esc(S.status)}</span></div>${prog}</div>
+    <div class="tabs">${tabs.map(([k,n]) => `<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}<div class="pills">${pills()}</div></div>
+    <div class="main"><div class="card">${body()}</div></div>
+    ${footer()}
+    ${S.confirm ? `<div class="shade"><div class="dlg"><h3>Roll back driver</h3><p>Roll back ${esc(S.confirm.device)} to version ${esc(S.confirm.version)}?</p><p>The driver it uses now will be removed from this PC. A restart may be needed.</p>
+      <div class="acts"><button class="btn" data-act="rollbackNo">Cancel</button><button class="btn primary" data-act="rollbackYes">Roll back</button></div></div></div>` : ''}`;
+  const sc2 = document.querySelector('.scroll'); if (sc2) sc2.scrollTop = top;
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act],[data-tab],[data-banner],[data-pick]'); if (!t || t.disabled) return;
+  if (t.dataset.act) send(t.dataset.act);
+  else if (t.dataset.tab) send('tab', {tab: t.dataset.tab});
+  else if (t.dataset.banner) send('banner', {id: t.dataset.banner});
+  else if (t.dataset.pick) send('pick', {i: +t.dataset.pick});
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.tick !== undefined) send('tick', {i: +t.dataset.tick, on: t.checked});
+  else if (t.dataset.all !== undefined) send('tickAll', {on: t.checked});
+  else if (t.dataset.rp !== undefined) send('restorePoint', {on: t.checked});
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'F5') { e.preventDefault(); if (S && !S.busy) send('scan'); }
+  if (e.ctrlKey && '1234'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','log'][+e.key - 1]});
+  if (e.key === 'Escape' && S && S.confirm) send('rollbackNo');
+});
+document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, {passive:false});
+window.setState = s => { S = s; render(); };
+window.ipc.postMessage(JSON.stringify({cmd:'ready'}));
+</script>
+</body>
+</html>

@@ -24,8 +24,8 @@ rsa = { version = "0.9", features = ["sha2"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 ureq = { version = "2", default-features = false, features = ["native-tls"] }
 native-tls = "0.2"
-eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11"] }
-egui_extras = { version = "0.31", default-features = false }
+wry = "0.57"
+tao = "0.37"
 image = { version = "0.25", default-features = false, features = ["png", "ico"] }
 wmi = "0.18"
 windows = { version = "0.62", features = [
