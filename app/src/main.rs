@@ -57,6 +57,21 @@ fn log_error(msg: &str) {
     unsafe { MessageBoxW(None, &HSTRING::from(format!("{msg}\n\n(saved to {})", dir.join("error.log").display())), w!("TierS Driver Manage"), MB_OK | MB_ICONERROR); }
 }
 
+/// Developer check of the power code on this PC: exports the active plan and compares Ultimate with Balanced. Nothing is activated or changed.
+fn power_test() {
+    use tdm::power::{self, backup, hw, log::Log, overlay::{Overlay, RealOverlay}};
+    let (sys, ov) = (tdm::sys::RealSys, RealOverlay);
+    let log = Log::new(None);
+    let rp = || Ok(());
+    let env = power::Env { cfg: &sys, overlay: &ov, root: std::env::temp_dir().join("tdm_power_test"), log: &log, restore_point: &rp };
+    let name = power::cfg::active(&sys).map(|a| a.name).unwrap_or_default();
+    let h = hw::detect(name);
+    println!("{h:?}\nscore: {:?}\noverlay available: {} current: {:?}", hw::score(&h), ov.available(), ov.get());
+    println!("{}", power::backup_only(&env).text());
+    println!("{:?}", power::compare_ultimate(&env, &h));
+    println!("backups: {}", backup::list(&env.root).len());
+}
+
 fn run_window(cfg: Config, demo: Option<String>, dir: std::path::PathBuf) -> Result<(), String> {
     use base64::Engine;
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
@@ -75,7 +90,7 @@ fn run_window(cfg: Config, demo: Option<String>, dir: std::path::PathBuf) -> Res
     let (pw, pc) = (proxy.clone(), proxy.clone());
     let ctx = ui::Ctx { wake: Arc::new(move || { let _ = pw.lock().unwrap().send_event(UserEvent::Wake); }), close: Arc::new(move || { let _ = pc.lock().unwrap().send_event(UserEvent::Close); }) };
     let mut app = ui::App::new(cfg);
-    match &demo { Some(d) => app.demo(d), None => app.check_for_update(&ctx) }
+    match &demo { Some(d) => { app.demo(d); if d == "power" { app.handle(r#"{"cmd":"tab","tab":"power"}"#, &ctx); } } None => app.check_for_update(&ctx) }
     let mut last: Option<String> = None;
     event_loop.run(move |event, _, flow| {
         let _keep = &web_ctx;
@@ -100,6 +115,7 @@ fn main() {
     std::panic::set_hook(Box::new(|i| log_error(&format!("Crash: {i}"))));
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--diag") { diag(); return; }
+    if args.iter().any(|a| a == "--power-test") { power_test(); return; }
     let wait = args.iter().any(|a| a == "--wait-for-previous");
     let demo = args.iter().position(|a| a == "--demo").and_then(|i| args.get(i + 1)).cloned();
     let _guard = if demo.is_some() { None } else { match single_instance(wait) { Some(h) => Some(h), None => { note("TierS Driver Manage is already running (look in the taskbar or Task Manager). Close the other copy first."); return } } };

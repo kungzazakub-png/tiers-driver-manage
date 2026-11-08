@@ -6,6 +6,7 @@ use crate::engine::{self, Code, Config, InstallDeps, InvRow, ScanDeps, Shared};
 use crate::http::Real;
 use crate::sys::RealSys;
 use crate::update::{self, Manifest};
+use crate::power::{self, backup as pbackup, cfg as pcfg, hw::{self as phw, Hardware, Tier}, overlay::RealOverlay, profiles::{self, Opts}, Comparison, PreviewRow, Report};
 use crate::{selfupdate, winsys, wu};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -25,7 +26,7 @@ pub struct Ctx { pub wake: Arc<dyn Fn() + Send + Sync>, pub close: Arc<dyn Fn() 
 impl Ctx { fn repaint(&self) { (self.wake)() } }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Tab { Updates, Installed, Backups, Log }
+pub enum Tab { Updates, Installed, Backups, Power, Log }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mode { Review, Run, Results }
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -37,6 +38,14 @@ pub struct BannerBtn { pub id: &'static str, pub text: String, pub primary: bool
 pub struct Banner { pub kind: Kind, pub text: String, pub buttons: Vec<BannerBtn> }
 
 enum Running { None, Scan(Shared), Install(Shared) }
+
+enum PowerMsg { Loaded { hw: Hardware, tier: Tier, why: Vec<String>, preview: Vec<PreviewRow> }, Preview(Vec<PreviewRow>), Done { report: Report, status: &'static str, lines: Vec<String> }, Compared(Comparison, Vec<String>) }
+
+/// State of the Power Plan tab.
+pub struct PowerUi {
+    hw: Option<Hardware>, recommended: Tier, why: Vec<String>, selected: Tier, opts: Opts, preview: Vec<PreviewRow>,
+    report: Option<Report>, cmp: Option<Comparison>, status: String, busy: bool, confirm_reset: bool, loaded: bool, rx: Option<Receiver<PowerMsg>>,
+}
 
 pub struct App {
     http: Arc<Real>,
@@ -69,6 +78,7 @@ pub struct App {
     update_rx: Option<Receiver<Result<Option<Manifest>, String>>>,
     apply_rx: Option<Receiver<Result<String, String>>>,
     updating: bool,
+    power: PowerUi,
 }
 
 fn is_system_class(c: &str) -> bool { c.eq_ignore_ascii_case("SYSTEM") }
@@ -123,10 +133,11 @@ impl App {
             offers: HashMap::new(), declined: HashSet::new(), running: Running::None, scanned: false, status: "Ready to scan".into(), banner: None,
             restore_point: true, restore_done: false, log: vec![], need_reboot: false, pass: 0, auto: false, backups: vec![], selected_backup: None,
             confirm_rollback: None, update: None, update_rx: None, apply_rx: None, updating: false,
+            power: PowerUi { hw: None, recommended: Tier::Low, why: vec![], selected: Tier::Low, opts: Opts { restore_point: true, ..Default::default() }, preview: vec![], report: None, cmp: None, status: "Ready".into(), busy: false, confirm_reset: false, loaded: false, rx: None },
         }
     }
 
-    fn busy(&self) -> bool { !matches!(self.running, Running::None) || self.updating }
+    fn busy(&self) -> bool { !matches!(self.running, Running::None) || self.updating || self.power.busy }
     pub fn is_busy(&self) -> bool { self.busy() }
 
     fn say(&mut self, line: impl Into<String>) { self.log.push(line.into()); }
@@ -230,6 +241,19 @@ impl App {
                 }
             }
         }
+        let mut reload_power = false;
+        if let Some(rx) = &self.power.rx {
+            if let Ok(m) = rx.try_recv() {
+                self.power.rx = None; self.power.busy = false;
+                match m {
+                    PowerMsg::Loaded { hw, tier, why, preview } => { let first = !self.power.loaded; self.power.loaded = true; self.power.hw = Some(hw); self.power.recommended = tier; self.power.why = why; if first { self.power.selected = tier; } self.power.preview = preview; }
+                    PowerMsg::Preview(p) => self.power.preview = p,
+                    PowerMsg::Done { report, status, lines } => { self.power.status = status.into(); self.power.report = Some(report); self.log.extend(lines); reload_power = true; }
+                    PowerMsg::Compared(c, lines) => { self.power.cmp = Some(c); self.log.extend(lines); }
+                }
+            }
+        }
+        if reload_power { self.power_load(ctx); }
         let finished = match &self.running {
             Running::Scan(j) | Running::Install(j) => { let g = j.lock().unwrap(); if !g.status.is_empty() && !g.done { self.status = g.status.clone(); } g.done }
             Running::None => false,
@@ -380,6 +404,56 @@ impl App {
         self.refresh_backups();
     }
 
+    // ---------- power plan ----------
+    fn power_job(&mut self, ctx: &Ctx, f: impl FnOnce(&power::Env) -> PowerMsg + Send + 'static) {
+        if self.busy() { return; }
+        self.power.busy = true;
+        let (tx, rx) = channel();
+        let ctx2 = ctx.clone();
+        std::thread::spawn(move || {
+            wu::init_com();
+            let (sys, ov) = (RealSys, RealOverlay);
+            let root = pbackup::root();
+            let log = power::log::Log::new(Some(root.join("power.log")));
+            let rp = || crate::restorepoint::create("TierS Power Plan");
+            let env = power::Env { cfg: &sys, overlay: &ov, root: root.clone(), log: &log, restore_point: &rp };
+            let _ = tx.send(f(&env));
+            ctx2.repaint();
+        });
+        self.power.rx = Some(rx);
+    }
+
+    fn power_load(&mut self, ctx: &Ctx) {
+        let (first, sel, opts) = (!self.power.loaded, self.power.selected, self.power.opts);
+        self.power_job(ctx, move |env| {
+            let name = pcfg::active(env.cfg).map(|a| a.name).unwrap_or_else(|_| "unknown".into());
+            let hw = phw::detect(name);
+            let (tier, why) = phw::score(&hw);
+            let preview = power::preview(env, if first { tier } else { sel }, opts);
+            PowerMsg::Loaded { hw, tier, why, preview }
+        });
+    }
+
+    fn power_refresh_preview(&mut self, ctx: &Ctx) {
+        let (sel, opts) = (self.power.selected, self.power.opts);
+        self.power_job(ctx, move |env| PowerMsg::Preview(power::preview(env, sel, opts)));
+    }
+
+    fn power_apply(&mut self, ctx: &Ctx) {
+        let Some(hw) = self.power.hw.clone() else { return };
+        if self.busy() { return; }
+        let (t, o) = (self.power.selected, self.power.opts);
+        self.power.status = "Applying".into();
+        self.power_job(ctx, move |env| { let report = power::apply(env, t, o, &hw); let status = if report.ok { "Success" } else { "Failed" }; PowerMsg::Done { report, status, lines: env.log.lines() } });
+    }
+
+    fn power_run(&mut self, ctx: &Ctx, what: &str, f: impl FnOnce(&power::Env) -> (Report, &'static str) + Send + 'static) {
+        if self.busy() { return; }
+        self.power.status = "Applying".into();
+        self.log.push(format!("Power plan: {what}"));
+        self.power_job(ctx, move |env| { let (report, status) = f(env); PowerMsg::Done { report, status, lines: env.log.lines() } });
+    }
+
     // ---------- commands from the page ----------
     pub fn handle(&mut self, msg: &str, ctx: &Ctx) {
         let v: Value = serde_json::from_str(msg).unwrap_or(Value::Null);
@@ -390,8 +464,9 @@ impl App {
             "install" => self.start_install(ctx),
             "update" => self.start_update(ctx),
             "tab" => {
-                self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("log") => Tab::Log, _ => Tab::Updates };
+                self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("power") => Tab::Power, Some("log") => Tab::Log, _ => Tab::Updates };
                 if self.tab == Tab::Backups { self.refresh_backups(); }
+                if self.tab == Tab::Power && !self.power.loaded { self.power_load(ctx); }
             }
             "tick" => if let (Some(i), Some(on)) = (i, v["on"].as_bool()) { if self.mode == Mode::Review && !self.busy() { if let Some(r) = self.rows.get_mut(i) { r.ticked = on; } } },
             "tickAll" => if let Some(on) = v["on"].as_bool() { if self.mode == Mode::Review && !self.busy() { for r in self.rows.iter_mut() { r.ticked = on; } } },
@@ -401,6 +476,19 @@ impl App {
             "rollback" => { if self.selected_backup.is_some() && !self.busy() { self.confirm_rollback = self.selected_backup; } }
             "rollbackYes" => { if let Some(i) = self.confirm_rollback.take() { self.do_rollback(i); } }
             "rollbackNo" => self.confirm_rollback = None,
+            "power_tier" => if !self.power.busy { if let Some(t) = v["tier"].as_str().and_then(Tier::from_key) { self.power.selected = t; self.power_refresh_preview(ctx); } },
+            "power_opt" => if !self.power.busy { if let Some(on) = v["on"].as_bool() {
+                match v["name"].as_str() { Some("usb") => self.power.opts.usb_off = on, Some("pcie") => self.power.opts.pcie_off = on, Some("ultimate") => self.power.opts.ultimate = on, Some("restore") => self.power.opts.restore_point = on, _ => {} }
+                if v["name"].as_str() != Some("restore") { self.power_refresh_preview(ctx); }
+            } },
+            "power_apply" => self.power_apply(ctx),
+            "power_backup" => self.power_run(ctx, "Backup settings", |env| { let r = power::backup_only(env); let s = if r.ok { "Success" } else { "Failed" }; (r, s) }),
+            "power_restore" => self.power_run(ctx, "Restore original settings", |env| { let r = power::restore(env, power::Which::Original); let s = if r.ok { "Restore Completed" } else { "Failed" }; (r, s) }),
+            "power_undo" => self.power_run(ctx, "Undo last optimization", |env| { let r = power::restore(env, power::Which::Last); let s = if r.ok { "Restore Completed" } else { "Failed" }; (r, s) }),
+            "power_reset" => if !self.busy() { self.power.confirm_reset = true; },
+            "power_reset_no" => self.power.confirm_reset = false,
+            "power_reset_yes" => { self.power.confirm_reset = false; self.power_run(ctx, "Reset to Windows default", |env| { let r = power::reset_defaults(env); let s = if r.ok { "Success" } else { "Failed" }; (r, s) }) }
+            "power_compare" => if let Some(hw) = self.power.hw.clone() { self.power_job(ctx, move |env| { let c = power::compare_ultimate(env, &hw); PowerMsg::Compared(c, env.log.lines()) }) },
             _ => {}
         }
     }
@@ -459,7 +547,7 @@ impl App {
         json!({
             "version": VERSION, "machine": self.machine, "busy": busy, "status": self.status, "statusTone": st_tone, "statusIcon": st_icon, "progress": progress,
             "update": self.update.as_ref().map(|m| json!({ "version": m.version, "notes": m.notes })),
-            "tab": match self.tab { Tab::Updates => "updates", Tab::Installed => "installed", Tab::Backups => "backups", Tab::Log => "log" },
+            "tab": match self.tab { Tab::Updates => "updates", Tab::Installed => "installed", Tab::Backups => "backups", Tab::Power => "power", Tab::Log => "log" },
             "mode": match self.mode { Mode::Review => "review", Mode::Run => "run", Mode::Results => "results" },
             "scanned": self.scanned,
             "banner": self.banner.as_ref().map(|b| json!({ "kind": match b.kind { Kind::Info => "info", Kind::Good => "good", Kind::Warn => "warn", Kind::Bad => "bad" }, "text": b.text,
@@ -467,8 +555,22 @@ impl App {
             "rows": rows, "infos": infos, "inventory": inventory, "backups": backups, "selectedBackup": self.selected_backup,
             "pills": { "drivers": self.inventory.len(), "upIcon": up_icon, "upTone": up_tone, "upText": up_text, "missing": self.missing_count },
             "selN": sel_n, "selSize": size_text(Some(sel_mb)), "allTicked": !self.rows.is_empty() && self.rows.iter().all(|r| r.ticked),
-            "restorePoint": self.restore_point, "log": self.log.join("\n"),
+            "restorePoint": self.restore_point, "log": self.log.join("\n"), "power": self.power_view(),
             "confirm": self.confirm_rollback.and_then(|i| self.backups.get(i)).map(|b| json!({ "device": b.entry.device, "version": b.entry.old_version })),
+        })
+    }
+
+    fn power_view(&self) -> Value {
+        let p = &self.power;
+        let hw = p.hw.as_ref().map(|h| json!({
+            "vendor": match h.vendor { phw::Vendor::Intel => "Intel", phw::Vendor::Amd => "AMD", phw::Vendor::Unknown => "Unknown" }, "cpu": if h.cpu_name.is_empty() { "Unknown".to_string() } else { h.cpu_name.clone() },
+            "cores": if h.threads > 0 { format!("{} cores / {} threads", h.cores, h.threads) } else { "Unknown".into() }, "ram": if h.ram_gb > 0.0 { format!("{:.1} GB", h.ram_gb) } else { "Unknown".into() },
+            "windows": h.windows, "type": if h.laptop { "Laptop" } else { "Desktop" }, "source": match h.on_ac { Some(true) => "Plugged in (AC)", Some(false) => "On battery", None => "Unknown" }, "plan": h.active_plan }));
+        let battery_block = p.selected == Tier::Extreme && p.hw.as_ref().map(|h| h.on_ac == Some(false)).unwrap_or(false);
+        json!({
+            "loaded": p.loaded, "hw": hw, "recommended": p.recommended.key(), "recommendedName": p.recommended.name(), "why": p.why, "selected": p.selected.key(), "opts": p.opts,
+            "preview": p.preview, "report": p.report, "cmp": p.cmp, "status": p.status, "busy": p.busy, "confirmReset": p.confirm_reset, "batteryBlock": battery_block,
+            "profiles": profiles::PROFILES.iter().map(|x| json!({ "key": x.tier.key(), "title": x.title, "suited": x.suited, "goal": x.goal, "powerMode": x.power_mode_best, "usb": x.usb_optional, "pcie": x.pcie_optional, "ultimate": x.ultimate_optional })).collect::<Vec<_>>(),
         })
     }
 

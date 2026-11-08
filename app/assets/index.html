@@ -110,6 +110,48 @@ svg { display:block; flex:none; }
 .foot .btn.primary { height:42px; min-width:200px; }
 .cnt { color:var(--muted); }
 
+/* power plan */
+.pw { padding:18px 22px 26px; max-width:1040px; }
+.pw section { margin-bottom:24px; }
+.pw h3 { margin:0 0 10px; font-size:15px; font-weight:600; color:var(--navy); }
+.hwgrid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px 20px; }
+.hwgrid .k { color:var(--muted); font-size:12.5px; }
+.hwgrid .v { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rec { padding:10px 14px; border-radius:6px; background:var(--accent-soft); display:flex; gap:10px; align-items:flex-start; }
+.rec .ico { color:var(--accent); margin-top:2px; }
+.rec small { color:var(--muted); display:block; margin-top:2px; }
+.prow { display:grid; grid-template-columns:28px 190px minmax(0,1.2fr) minmax(0,1fr) 110px; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; cursor:pointer; }
+.prow:hover { background:var(--hover); }
+.prow.on { border-color:var(--accent); background:var(--accent-soft); }
+.prow .n { font-weight:600; }
+.prow .m { color:var(--muted); font-size:13px; }
+.badge { font:600 11.5px var(--font); color:var(--accent-dark); border:1px solid #aabeeb; border-radius:10px; padding:1px 8px; justify-self:end; background:#fff; }
+.radio { appearance:none; -webkit-appearance:none; width:18px; height:18px; margin:0; border:1.5px solid #94a3b8; border-radius:50%; background:#fff; cursor:pointer; position:relative; }
+.radio:checked { border-color:var(--accent); }
+.radio:checked::after { content:""; position:absolute; inset:3px; border-radius:50%; background:var(--accent); }
+.opts { display:grid; gap:8px; }
+.opts label { display:flex; align-items:center; gap:10px; cursor:pointer; }
+.opts label.off { color:var(--off-text); cursor:default; }
+.opts .cb { margin:0; }
+.ptbl .tr { grid-template-columns:210px minmax(0,1fr) minmax(0,1.1fr) 250px; min-height:38px; padding-right:0; }
+.ptbl { border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+.ptbl .th { position:static; }
+.ptbl .tr > div { padding:0 10px; }
+.ptbl .tr:last-child { border-bottom:0; }
+.note-warn { color:var(--warn); font-weight:600; margin:0 0 10px; }
+.rep { border:1px solid var(--line); border-radius:6px; padding:14px 16px; }
+.rep h4 { margin:12px 0 4px; font-size:13px; color:var(--muted); font-weight:600; }
+.rep h4:first-child { margin-top:0; }
+.rep ul { margin:0; padding-left:18px; } .rep li { margin:2px 0; }
+.rep .two { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.rep .kv { display:grid; grid-template-columns:200px 1fr; gap:2px 10px; font-size:13px; }
+.rep .kv span:nth-child(odd) { color:var(--muted); }
+.chip { display:inline-flex; align-items:center; gap:6px; font-weight:600; }
+.cmp { margin-top:12px; }
+.cmp .tr { grid-template-columns:260px 1fr 1fr; min-height:34px; padding-right:0; }
+.cmp .tr > div { padding:0 10px; }
+.cmp .diff { background:var(--warn-soft); }
+
 /* modal */
 .shade { position:fixed; inset:0; background:rgba(15,37,71,.35); display:flex; align-items:center; justify-content:center; z-index:10; }
 .dlg { width:440px; background:#fff; border-radius:10px; padding:22px; box-shadow:0 12px 40px rgba(15,37,71,.3); }
@@ -169,7 +211,40 @@ function backupsTable() {
   return h;
 }
 
+function powerPanel() {
+  const P = S.power;
+  if (!P.loaded) return `<div class="empty"><h2>${P.busy ? "Reading this PC" : "Power Plan Manager"}</h2><p>${P.busy ? "Checking the CPU, memory and current power plan..." : "Open this tab to read the hardware."}</p></div>`;
+  const h = P.hw || {};
+  const sel = P.profiles.find(p => p.key === P.selected) || P.profiles[0];
+  const hwItems = [["CPU vendor",h.vendor],["CPU model",h.cpu],["Cores / threads",h.cores],["RAM",h.ram],["Windows",h.windows],["PC type",h.type],["Power source",h.source],["Current power plan",h.plan]];
+  const off = (ok) => ok ? "" : "off";
+  const opt = (name, on, enabled, text, extra="") => `<label class="${off(enabled)}"><input class="cb" type="checkbox" data-popt="${name}" ${on?"checked":""} ${enabled && !P.busy?"":"disabled"}><span>${text}${enabled?"":" <span class=muted>(not part of this profile)</span>"}</span>${extra}</label>`;
+  let h2 = `<div class="pw">
+    <section><h3>Hardware information</h3><div class="hwgrid">${hwItems.map(([k,v]) => `<div><div class="k">${k}</div><div class="v" title="${esc(v)}">${esc(v)}</div></div>`).join("")}</div></section>
+    <section><div class="rec">${ico("info")}<div><b>Recommended: ${esc(P.recommendedName)}</b><small>${esc(P.why.join(" · "))}</small></div></div></section>
+    <section><h3>Performance profile</h3>${P.profiles.map(p => `<label class="prow ${P.selected===p.key?"on":""}"><input class="radio" type="radio" name="tier" data-tier="${p.key}" ${P.selected===p.key?"checked":""} ${P.busy?"disabled":""}>
+      <span class="n">${esc(p.title)}</span><span class="m">${esc(p.suited)}</span><span class="m">${esc(p.goal)}</span>${P.recommended===p.key?`<span class="badge">Recommended</span>`:"<span></span>"}</label>`).join("")}</section>
+    <section><h3>Options</h3><div class="opts">
+      ${opt("restore", P.opts.restore_point, true, "Create a system restore point first")}
+      ${opt("usb", P.opts.usb_off, sel.usb, "Turn off USB selective suspend (optional)")}
+      ${opt("pcie", P.opts.pcie_off, sel.pcie, "Set PCI Express link state to Off (optional)")}
+      ${opt("ultimate", P.opts.ultimate, sel.ultimate, "Use the Ultimate Performance plan (optional)", sel.ultimate ? `<button class="btn" data-act="power_compare" ${P.busy?"disabled":""}>Compare with Balanced</button>` : "")}
+    </div></section>
+    <section><h3>Changes that will be applied</h3>${P.batteryBlock ? `<p class="note-warn">The Extreme profile is not applied while the PC runs on battery. Plug in the charger first.</p>` : ""}
+      <div class="ptbl"><div class="tr th"><div>Setting</div><div>Now</div><div>After</div><div>Note</div></div>${P.preview.map(r => `<div class="tr"><div>${esc(r.label)}</div><div title="${esc(r.current)}">${esc(r.current)}</div><div title="${esc(r.new)}">${esc(r.new)}</div><div class="muted">${esc(r.note)}</div></div>`).join("")}</div></section>`;
+  if (P.cmp) h2 += `<section><h3>Ultimate Performance vs Balanced</h3><p style="margin:0 0 6px">${esc(P.cmp.advice)}</p>${P.cmp.available ? `<div class="ptbl cmp"><div class="tr th"><div>Setting</div><div>Balanced</div><div>Ultimate Performance</div></div>${P.cmp.rows.map(r => `<div class="tr ${r.differs?"diff":""}"><div>${esc(r.label)}</div><div>${esc(r.balanced)}</div><div>${esc(r.ultimate)}</div></div>`).join("")}</div>` : ""}</section>`;
+  if (P.report) {
+    const R = P.report, ul = (t, a) => `<h4>${t}</h4>${a.length ? `<ul>${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : `<div class="muted">None</div>`}`;
+    const kv = a => `<div class="kv">${a.map(l => `<span>${esc(l.label)}</span><span>${esc(l.value)}</span>`).join("")}</div>`;
+    h2 += `<section><h3>Report: ${esc(R.title)} <span class="chip ${R.ok?"good":"bad"}">${ico(R.ok?"check":"cross")}${R.ok?"Success":"Failed"}</span></h3><div class="rep">
+      <div class="two"><div><h4>Previous configuration</h4>${kv(R.previous)}</div><div><h4>New configuration</h4>${kv(R.new)}</div></div>
+      ${ul("Successfully applied", R.applied)}${ul("Unsupported settings", R.unsupported)}${ul("Failed settings", R.failed)}<h4>Restore status</h4><div>${esc(R.restore)}</div></div></section>`;
+  }
+  return `<div class="scroll">${h2}</div></div>`;
+}
+
 function body() {
+  if (S.tab === "power") return powerPanel();
   if (S.tab === 'installed') return `<div class="scroll">${installedTable()}</div>`;
   if (S.tab === 'backups') return `<div class="scroll">${backupsTable()}</div>`;
   if (S.tab === 'log') return `<div class="scroll"><pre class="log">${esc(S.log)}</pre></div>`;
@@ -195,7 +270,15 @@ function pills() {
     <button class="pill" data-tab="log">${ico(miss[0], miss[1])}${miss[2]}</button>`;
 }
 
+function powerFooter() {
+  const P = S.power, b = P.busy || S.busy;
+  const ic = {Success:["check","good"], Failed:["cross","bad"], Applying:["dot","accent"], "Restore Completed":["check","good"], Ready:["ring","muted"]}[P.status] || ["ring","muted"];
+  return `<div class="foot"><button class="btn" data-act="power_backup" ${b?"disabled":""}>Backup settings</button><button class="btn" data-act="power_restore" ${b?"disabled":""}>Restore original</button><button class="btn" data-act="power_undo" ${b?"disabled":""}>Undo last</button><button class="btn link" data-act="power_reset" ${b?"disabled":""}>Reset to Windows default</button>
+    <div class="grow"></div><span class="chip tone-${ic[1]}">${ico(ic[0], "tone-"+ic[1])}${esc(P.status)}</span><button class="btn primary" data-act="power_apply" ${b || P.batteryBlock || !P.loaded ? "disabled" : ""}>Apply profile</button></div>`;
+}
+
 function footer() {
+  if (S.tab === "power") return powerFooter();
   const busy = S.busy;
   const showSel = S.tab === 'updates' && S.mode === 'review' && S.rows.length && !busy;
   let right = '';
@@ -210,7 +293,7 @@ function footer() {
 function render() {
   if (!S) return;
   const sc = document.querySelector('.scroll'); const top = sc ? sc.scrollTop : 0;
-  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['log','Log']];
+  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['power','Power plan'],['log','Log']];
   const prog = S.busy ? (S.progress == null ? '<div class="bar indet"><i></i></div>' : `<div class="bar"><i style="width:${Math.round(S.progress*100)}%"></i></div>`) : '<div class="bar"></div>';
   document.getElementById('app').style.display = 'contents';
   document.getElementById('app').innerHTML = `
@@ -221,6 +304,8 @@ function render() {
     <div class="tabs">${tabs.map(([k,n]) => `<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}<div class="pills">${pills()}</div></div>
     <div class="main"><div class="card">${body()}</div></div>
     ${footer()}
+    ${S.power.confirmReset ? `<div class="shade"><div class="dlg"><h3>Reset to Windows default</h3><p>This restores the Windows built-in power plans and removes any custom plans.</p><p>Your custom plans are exported to a backup folder first, and nothing is removed if that backup fails.</p>
+      <div class="acts"><button class="btn" data-act="power_reset_no">Cancel</button><button class="btn primary" data-act="power_reset_yes">Reset</button></div></div></div>` : ""}
     ${S.confirm ? `<div class="shade"><div class="dlg"><h3>Roll back driver</h3><p>Roll back ${esc(S.confirm.device)} to version ${esc(S.confirm.version)}?</p><p>The driver it uses now will be removed from this PC. A restart may be needed.</p>
       <div class="acts"><button class="btn" data-act="rollbackNo">Cancel</button><button class="btn primary" data-act="rollbackYes">Roll back</button></div></div></div>` : ''}`;
   const sc2 = document.querySelector('.scroll'); if (sc2) sc2.scrollTop = top;
@@ -238,10 +323,12 @@ document.addEventListener('change', e => {
   if (t.dataset.tick !== undefined) send('tick', {i: +t.dataset.tick, on: t.checked});
   else if (t.dataset.all !== undefined) send('tickAll', {on: t.checked});
   else if (t.dataset.rp !== undefined) send('restorePoint', {on: t.checked});
+  else if (t.dataset.tier !== undefined) send('power_tier', {tier: t.dataset.tier});
+  else if (t.dataset.popt !== undefined) send('power_opt', {name: t.dataset.popt, on: t.checked});
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'F5') { e.preventDefault(); if (S && !S.busy) send('scan'); }
-  if (e.ctrlKey && '1234'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','log'][+e.key - 1]});
+  if (e.ctrlKey && '12345'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','power','log'][+e.key - 1]});
   if (e.key === 'Escape' && S && S.confirm) send('rollbackNo');
 });
 document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, {passive:false});
