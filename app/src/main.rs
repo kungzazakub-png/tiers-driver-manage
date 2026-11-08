@@ -116,6 +116,23 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--diag") { diag(); return; }
     if args.iter().any(|a| a == "--power-test") { power_test(); return; }
+    if args.iter().any(|a| a == "--memory-bench") {
+        // developer check: cost of one memory read, and the CPU time the whole run used
+        use windows::Win32::Foundation::FILETIME;
+        use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
+        let (mut ok, mut err, n) = (0u32, 0u32, 2000u32);
+        let t = Instant::now();
+        for _ in 0..n { if tdm::memory::Mem::stats(&tdm::memory::RealMem).is_ok() { ok += 1 } else { err += 1 } }
+        let wall = t.elapsed();
+        let (mut c, mut e, mut k, mut u) = (FILETIME::default(), FILETIME::default(), FILETIME::default(), FILETIME::default());
+        let _ = unsafe { GetProcessTimes(GetCurrentProcess(), &mut c, &mut e, &mut k, &mut u) };
+        let ticks = |f: FILETIME| ((f.dwHighDateTime as u64) << 32 | f.dwLowDateTime as u64) as f64 / 10_000.0; // ms
+        let text = format!("{n} reads: ok {ok}, failed {err}\nper read: {:.1} microseconds\nCPU time used: kernel {:.0} ms + user {:.0} ms", wall.as_secs_f64() * 1e6 / n as f64, ticks(k), ticks(u));
+        let _ = std::fs::write(std::env::temp_dir().join("tdm_bench.txt"), &text);
+        note(&text);
+        return;
+    }
+    if args.iter().any(|a| a == "--memory-test") { let r = format!("{:?}", tdm::memory::Mem::stats(&tdm::memory::RealMem)); println!("{r}"); note(&r); return; }
     let wait = args.iter().any(|a| a == "--wait-for-previous");
     let demo = args.iter().position(|a| a == "--demo").and_then(|i| args.get(i + 1)).cloned();
     let _guard = if demo.is_some() { None } else { match single_instance(wait) { Some(h) => Some(h), None => { note("TierS Driver Manage is already running (look in the taskbar or Task Manager). Close the other copy first."); return } } };

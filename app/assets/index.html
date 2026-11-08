@@ -6,18 +6,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root {
-  --navy:#0f2547; --page:#f4f6f9; --border:#dadfe7; --line:#e8ecf2; --text:#1b2733; --muted:#4e5a6e;
+  --navy:#0f2547; --page:#f4f6f9; --border:#dadfe7; --line:#e8ecf2; --text:#1b2733; --muted:#2b3647;
   --accent:#2563eb; --accent-dark:#1d4ed8; --accent-soft:#eaf1ff;
   --good:#117436; --good-soft:#e8f5ec; --warn:#9e4606; --warn-soft:#fef3e2; --bad:#b91c1c; --bad-soft:#fdecec;
-  --off:#e2e8f0; --off-text:#64748b; --hover:#f3f6fb;
+  --off:#cfd8e3; --off-text:#2b3647; --hover:#f3f6fb;
   --font:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI","Leelawadee UI",system-ui,sans-serif;
 }
 * { box-sizing:border-box; }
 html,body { margin:0; height:100%; }
-body { font:14px/1.4 var(--font); color:var(--text); background:var(--page); display:flex; flex-direction:column; overflow:hidden; user-select:none; -webkit-user-select:none; cursor:default; }
+button, input, select, textarea, pre { font-family:inherit; }
+body { font:14px/1.5 var(--font); color:var(--text); background:var(--page); display:flex; flex-direction:column; overflow:hidden; user-select:none; -webkit-user-select:none; cursor:default; }
 svg { display:block; flex:none; }
 .ico { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-.good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)} .accent{color:var(--accent)} .muted{color:var(--muted)}
+.good{color:var(--good)} .bad{color:var(--bad)} .warn{color:var(--warn)} .accent{color:var(--accent-dark)} .muted{color:var(--muted)}
 
 /* top bar */
 .top { height:56px; background:#fff; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 14px; gap:12px; flex:none; }
@@ -52,7 +53,7 @@ svg { display:block; flex:none; }
 .tabs { display:flex; align-items:flex-end; padding:0 20px; flex:none; margin-top:0; }
 .tab { height:40px; padding:0 14px; font:600 14.5px var(--font); color:var(--muted); background:none; border:0; cursor:pointer; position:relative; }
 .tab:hover { color:var(--text); }
-.tab.on { color:var(--accent); }
+.tab.on { color:var(--accent-dark); }
 .tab.on::after { content:""; position:absolute; left:8px; right:8px; bottom:0; height:3px; border-radius:2px 2px 0 0; background:var(--accent); }
 .pills { margin-left:auto; display:flex; gap:8px; align-self:center; padding-bottom:4px; }
 .pill { display:flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--border); border-radius:14px; padding:3px 10px; font:600 13px var(--font); color:var(--text); cursor:pointer; }
@@ -83,23 +84,23 @@ svg { display:block; flex:none; }
 .g-in { grid-template-columns:44px minmax(200px,1fr) 124px 170px 130px 100px 120px; min-height:40px; }
 .g-bk { grid-template-columns:190px minmax(220px,1fr) 170px 150px; min-height:42px; }
 .g-bk > div:first-child, .g-in > div:first-child { padding-left:14px; }
-.tone-good{color:var(--good)} .tone-bad{color:var(--bad)} .tone-warn{color:var(--warn)} .tone-accent{color:var(--accent)} .tone-muted{color:var(--muted)}
+.tone-good{color:var(--good)} .tone-bad{color:var(--bad)} .tone-warn{color:var(--warn)} .tone-accent{color:var(--accent-dark)} .tone-muted{color:var(--muted)}
 .s { font-weight:600; }
 .ic { display:flex; justify-content:center; }
 
 /* checkbox */
-.cb { appearance:none; -webkit-appearance:none; width:18px; height:18px; margin:0 0 0 12px; border:1.5px solid #94a3b8; border-radius:4px; background:#fff; cursor:pointer; position:relative; }
+.cb { appearance:none; -webkit-appearance:none; width:18px; height:18px; margin:0 0 0 12px; border:1.5px solid #5b6b82; border-radius:4px; background:#fff; cursor:pointer; position:relative; }
 .cb:hover:not(:disabled) { border-color:var(--accent); }
 .cb:checked { background:var(--accent); border-color:var(--accent); }
 .cb:checked::after { content:""; position:absolute; left:5px; top:1px; width:4px; height:9px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
-.cb:disabled { opacity:.5; cursor:default; }
+.cb:disabled { opacity:.65; cursor:default; }
 
 /* empty + log */
 .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px 20px 60px; }
 .empty h2 { margin:0 0 6px; font-size:22px; font-weight:600; color:var(--navy); }
 .empty p { margin:0; color:var(--muted); font-size:14.5px; white-space:pre-line; }
 .empty.good h2 { color:var(--good); } .empty.accent h2 { color:var(--accent); }
-.log { margin:0; padding:14px; font:12.5px/1.5 Consolas,"Cascadia Mono",monospace; white-space:pre-wrap; user-select:text; -webkit-user-select:text; cursor:text; }
+.log { margin:0; padding:14px; font:13px/1.55 var(--font); white-space:pre-wrap; user-select:text; -webkit-user-select:text; cursor:text; }
 
 /* footer */
 .foot { height:66px; background:#fff; border-top:1px solid var(--border); display:flex; align-items:center; padding:0 20px; gap:12px; flex:none; }
@@ -126,7 +127,7 @@ svg { display:block; flex:none; }
 .prow .n { font-weight:600; }
 .prow .m { color:var(--muted); font-size:13px; }
 .badge { font:600 11.5px var(--font); color:var(--accent-dark); border:1px solid #aabeeb; border-radius:10px; padding:1px 8px; justify-self:end; background:#fff; }
-.radio { appearance:none; -webkit-appearance:none; width:18px; height:18px; margin:0; border:1.5px solid #94a3b8; border-radius:50%; background:#fff; cursor:pointer; position:relative; }
+.radio { appearance:none; -webkit-appearance:none; width:18px; height:18px; margin:0; border:1.5px solid #5b6b82; border-radius:50%; background:#fff; cursor:pointer; position:relative; }
 .radio:checked { border-color:var(--accent); }
 .radio:checked::after { content:""; position:absolute; inset:3px; border-radius:50%; background:var(--accent); }
 .opts { display:grid; gap:8px; }
@@ -151,6 +152,30 @@ svg { display:block; flex:none; }
 .cmp .tr { grid-template-columns:260px 1fr 1fr; min-height:34px; padding-right:0; }
 .cmp .tr > div { padding:0 10px; }
 .cmp .diff { background:var(--warn-soft); }
+
+/* memory */
+.mbar { display:flex; height:16px; border-radius:8px; overflow:hidden; background:var(--line); margin-bottom:10px; }
+.mbar i { display:block; height:100%; }
+.mbar .u { background:var(--accent-dark); } .mbar .sb { background:#6b93ee; } .mbar .fr { background:#b4caf7; }
+.mleg { display:flex; gap:18px; margin-bottom:16px; color:var(--muted); font-size:12.5px; }
+.mleg span::before { content:""; display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; background:var(--c); }
+.mem { padding:18px 22px 26px; }
+.mcols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:20px; align-items:start; }
+@media (max-width:1000px) { .mcols { grid-template-columns:minmax(0,1fr); } }
+.mcard { border:1px solid var(--line); border-radius:8px; padding:16px 18px; margin:0; }
+.mcard h3 { margin:0 0 12px; font-size:15px; font-weight:600; color:var(--navy); }
+.mem .hwgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.mhead { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.mhead h3 { margin:0; flex:1; }
+.mhelp { margin:16px 0 0; color:var(--muted); }
+.mrow { margin:0 0 16px; }
+.mrow .k b { font-weight:600; display:block; }
+.mrow .k small { color:var(--muted); font-size:12.5px; }
+.mrow .ctl { display:flex; align-items:center; gap:14px; margin-top:6px; }
+.mrow .val { font-weight:600; color:var(--navy); min-width:64px; text-align:right; }
+.rng { flex:1; min-width:0; margin:0; height:22px; accent-color:var(--accent); cursor:pointer; }
+.now { margin-top:4px; padding:10px 14px; border-radius:6px; background:var(--accent-soft); }
+.now.go { background:#d6e4ff; }
 
 /* modal */
 .shade { position:fixed; inset:0; background:rgba(15,37,71,.35); display:flex; align-items:center; justify-content:center; z-index:10; }
@@ -243,7 +268,41 @@ function powerPanel() {
   return `<div class="scroll">${h2}</div></div>`;
 }
 
+const FMT = {
+  poll: v => v < 1000 ? v + " ms" : +(v / 1000).toFixed(1) + " s",
+  standby: v => v >= 1024 ? +(v / 1024).toFixed(2) + " GB" : v + " MB",
+  free: v => v >= 1024 ? +(v / 1024).toFixed(2) + " GB" : v + " MB",
+};
+let dragging = false;
+
+function memoryPanel() {
+  const M = S.memory, s = M.stats;
+  const sl = (name, title, hint, r, val) => `<div class="mrow"><div class="k"><b>${title}</b><small>${hint}</small></div><div class="ctl"><input class="rng" type="range" data-rng="${name}" min="${r[0]}" max="${r[1]}" step="${r[2]}" value="${val}" aria-label="${title}"><span class="val">${FMT[name](val)}</span></div></div>`;
+  const items = s ? [["Total memory", s.total], ["In use", s.inUse], ["Available (free + standby)", s.available], ["Standby list (cached)", s.standby], ["Modified", s.modified], ["Free", s.free]] : [];
+  const left = `<section class="mcard"><h3>Memory now</h3>${s ? `<div class="mbar"><i class="u" style="width:${s.pctUse}%"></i><i class="sb" style="width:${s.pctStandby}%"></i><i class="fr" style="width:${s.pctFree}%"></i></div>
+      <div class="mleg"><span style="--c:var(--accent-dark)">In use</span><span style="--c:#6b93ee">Standby list</span><span style="--c:#b4caf7">Free</span></div>
+      <div class="hwgrid">${items.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join("")}</div>` : `<p class="muted">Reading memory...</p>`}
+      <p class="mhelp"><b>Standby list:</b> data Windows keeps in memory so programs open faster. It is given back to programs on demand, so a full list is normal and usually harmless. Cleaning helps only when a game or app stutters while the list is large and free memory is low. Right after a clean, programs may load a little slower while Windows fills the cache again.</p></section>`;
+  const right = `<section class="mcard"><div class="mhead"><h3>Automatic cleaning</h3>
+      <span class="chip tone-${M.on ? "good" : "muted"}">${ico(M.on ? "check" : "ring", "tone-" + (M.on ? "good" : "muted"))}${M.on ? "On · cleaned " + M.purges + " time(s)" : "Off"}</span>
+      <button class="btn ${M.on ? "" : "primary"}" data-mem="auto" data-v="${M.on ? 0 : 1}">${M.on ? "Stop" : "Start"}</button></div>
+      <p class="mhelp" style="margin-top:0">When it is on, the program watches memory and cleans the standby list for you, but only when <b>both</b> conditions below are true at the same moment. Drag a slider to change a value; the new value is used right away. It stops when you close the program.</p>
+      ${sl("poll", "Check every", "How often the program looks at memory", M.pollR, M.poll)}
+      ${sl("standby", "Condition 1: standby list is at least", "A small list is not worth cleaning", M.standbyR, M.standbyMb)}
+      ${sl("free", "Condition 2: free memory is at most", "Plenty of free memory means no need to clean", M.freeR, M.freeMb)}
+      ${s ? `<div class="now ${M.wouldClean ? "go" : ""}"><b>Right now:</b> standby list ${FMT.standby(M.standbyNowMb)} (needs at least ${FMT.standby(M.standbyMb)}) · free memory ${FMT.free(M.freeNowMb)} (needs at most ${FMT.free(M.freeMb)}) →
+        <b>${M.wouldClean ? "it would clean now" : "it would not clean"}</b></div>` : ""}</section>`;
+  return `<div class="scroll"><div class="mem">${M.err ? `<p class="note-warn">${esc(M.err)}</p>` : ""}<div class="mcols">${left}${right}</div></div></div>`;
+}
+
+function memoryFooter() {
+  const M = S.memory;
+  const status = M.note || "Ready";
+  const tone = M.err ? ["cross", "bad"] : ["ring", "muted"];
+  return `<div class="foot"><div class="grow"></div><span class="chip tone-${tone[1]}">${ico(tone[0], "tone-" + tone[1])}${esc(status)}</span><button class="btn primary" data-act="mem_purge">Clean standby list now</button></div>`;
+}
 function body() {
+  if (S.tab === "memory") return memoryPanel();
   if (S.tab === "power") return powerPanel();
   if (S.tab === 'installed') return `<div class="scroll">${installedTable()}</div>`;
   if (S.tab === 'backups') return `<div class="scroll">${backupsTable()}</div>`;
@@ -280,6 +339,7 @@ function powerFooter() {
 }
 
 function footer() {
+  if (S.tab === "memory") return memoryFooter();
   if (S.tab === "power") return powerFooter();
   const busy = S.busy;
   const showSel = S.tab === 'updates' && S.mode === 'review' && S.rows.length && !busy;
@@ -295,15 +355,17 @@ function footer() {
 function render() {
   if (!S) return;
   const sc = document.querySelector('.scroll'); const top = sc ? sc.scrollTop : 0;
-  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['power','Power plan'],['log','Log']];
+  const noScan = S.tab === 'memory' || S.tab === 'power'; // these tabs have nothing to do with scanning drivers
+  const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.rng : null;
+  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['power','Power plan'],['memory','Memory'],['log','Log']];
   const prog = S.busy ? (S.progress == null ? '<div class="bar indet"><i></i></div>' : `<div class="bar"><i style="width:${Math.round(S.progress*100)}%"></i></div>`) : '<div class="bar"></div>';
   document.getElementById('app').style.display = 'contents';
   document.getElementById('app').innerHTML = `
     <div class="top"><img src="__LOGO__" alt=""><h1>TierS Driver Manage</h1><span class="sep"></span><span class="machine" title="${esc(S.machine)}">${esc(S.machine)}</span><span class="grow"></span>
       ${S.update ? `<button class="btn" data-act="update" ${S.busy?'disabled':''} title="${esc(S.update.notes)}">Update to ${esc(S.update.version)}</button>` : ''}<span class="ver">v${esc(S.version)}</span></div>
-    <div class="tool"><div class="row"><button class="btn primary" data-act="scan" ${S.busy?'disabled':''} title="F5">Scan drivers</button>
-      <span class="status tone-${S.statusTone}">${ico(S.statusIcon, 'tone-'+S.statusTone)}${esc(S.status)}</span></div>${prog}</div>
-    <div class="tabs">${tabs.map(([k,n]) => `<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}<div class="pills">${pills()}</div></div>
+    <div class="tool">${noScan ? '' : `<div class="row"><button class="btn primary" data-act="scan" ${S.busy?'disabled':''} title="F5">Scan drivers</button>
+      <span class="status tone-${S.statusTone}">${ico(S.statusIcon, 'tone-'+S.statusTone)}${esc(S.status)}</span></div>`}${prog}</div>
+    <div class="tabs">${tabs.map(([k,n]) => `<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${n}</button>`).join('')}<div class="pills">${noScan ? '' : pills()}</div></div>
     <div class="main"><div class="card">${body()}</div></div>
     ${footer()}
     ${S.power.confirmReset ? `<div class="shade"><div class="dlg"><h3>Reset to Windows default</h3><p>This restores the Windows built-in power plans and removes any custom plans.</p><p>Your custom plans are exported to a backup folder first, and nothing is removed if that backup fails.</p>
@@ -311,17 +373,28 @@ function render() {
     ${S.confirm ? `<div class="shade"><div class="dlg"><h3>Roll back driver</h3><p>Roll back ${esc(S.confirm.device)} to version ${esc(S.confirm.version)}?</p><p>The driver it uses now will be removed from this PC. A restart may be needed.</p>
       <div class="acts"><button class="btn" data-act="rollbackNo">Cancel</button><button class="btn primary" data-act="rollbackYes">Roll back</button></div></div></div>` : ''}`;
   const sc2 = document.querySelector('.scroll'); if (sc2) sc2.scrollTop = top;
+  if (focused) { const f = document.querySelector('[data-rng="' + focused + '"]'); if (f) f.focus(); }
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-tab],[data-banner],[data-pick]'); if (!t || t.disabled) return;
+  const t = e.target.closest('[data-act],[data-tab],[data-banner],[data-pick],[data-mem]'); if (!t || t.disabled) return;
   if (t.dataset.act) send(t.dataset.act);
+  else if (t.dataset.mem) send('mem_' + t.dataset.mem, {v: +t.dataset.v});
   else if (t.dataset.tab) send('tab', {tab: t.dataset.tab});
   else if (t.dataset.banner) send('banner', {id: t.dataset.banner});
   else if (t.dataset.pick) send('pick', {i: +t.dataset.pick});
 });
+// sliders: the value text follows the thumb at once; the page is not redrawn while the thumb is held (a redraw would drop it)
+document.addEventListener('pointerdown', e => { if (e.target.dataset && e.target.dataset.rng) dragging = true; });
+const drop = () => { if (dragging) { dragging = false; if (S) render(); } };
+document.addEventListener('pointerup', drop); document.addEventListener('pointercancel', drop);
+document.addEventListener('input', e => {
+  const t = e.target; if (!t.dataset || !t.dataset.rng) return;
+  t.closest('.mrow').querySelector('.val').textContent = FMT[t.dataset.rng](+t.value);
+});
 document.addEventListener('change', e => {
   const t = e.target;
+  if (t.dataset.rng) { send('mem_' + t.dataset.rng, {v: +t.value}); return; }
   if (t.dataset.tick !== undefined) send('tick', {i: +t.dataset.tick, on: t.checked});
   else if (t.dataset.all !== undefined) send('tickAll', {on: t.checked});
   else if (t.dataset.rp !== undefined) send('restorePoint', {on: t.checked});
@@ -330,11 +403,11 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'F5') { e.preventDefault(); if (S && !S.busy) send('scan'); }
-  if (e.ctrlKey && '12345'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','power','log'][+e.key - 1]});
+  if (e.ctrlKey && '123456'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','power','memory','log'][+e.key - 1]});
   if (e.key === 'Escape' && S && S.confirm) send('rollbackNo');
 });
 document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, {passive:false});
-window.setState = s => { S = s; render(); };
+window.setState = s => { S = s; if (!dragging) render(); };
 window.ipc.postMessage(JSON.stringify({cmd:'ready'}));
 </script>
 </body>

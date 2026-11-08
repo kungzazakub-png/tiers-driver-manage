@@ -7,6 +7,7 @@ use crate::http::Real;
 use crate::sys::RealSys;
 use crate::update::{self, Manifest};
 use crate::power::{self, backup as pbackup, cfg as pcfg, hw::{self as phw, Hardware, Tier}, overlay::RealOverlay, profiles::{self, Opts}, Comparison, PreviewRow, Report};
+use crate::memory::{self, Monitor, RealMem};
 use crate::{selfupdate, winsys, wu};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -28,7 +29,7 @@ pub struct Ctx { pub wake: Arc<dyn Fn() + Send + Sync>, pub close: Arc<dyn Fn() 
 impl Ctx { fn repaint(&self) { (self.wake)() } }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Tab { Updates, Installed, Backups, Power, Log }
+pub enum Tab { Updates, Installed, Backups, Power, Memory, Log }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mode { Review, Run, Results }
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -81,6 +82,7 @@ pub struct App {
     apply_rx: Option<Receiver<Result<String, String>>>,
     updating: bool,
     power: PowerUi,
+    mem: Monitor,
     report_rx: Option<Receiver<Result<usize, String>>>,
     reported: bool,
 }
@@ -137,7 +139,7 @@ impl App {
             offers: HashMap::new(), declined: HashSet::new(), running: Running::None, scanned: false, status: "Ready to scan".into(), banner: None,
             restore_point: true, restore_done: false, log: vec![], need_reboot: false, pass: 0, auto: false, backups: vec![], selected_backup: None,
             confirm_rollback: None, update: None, update_rx: None, apply_rx: None, updating: false,
-            report_rx: None, reported: false,
+            report_rx: None, reported: false, mem: Monitor::new(),
             power: PowerUi { hw: None, recommended: Tier::Low, why: vec![], selected: Tier::Low, opts: Opts { restore_point: true, ..Default::default() }, preview: vec![], report: None, cmp: None, status: "Ready".into(), busy: false, confirm_reset: false, loaded: false, rx: None },
         }
     }
@@ -265,6 +267,8 @@ impl App {
             }
         }
         if reload_power { self.power_load(ctx); }
+        let lines = self.mem.tick(&RealMem, std::time::Instant::now(), self.tab == Tab::Memory);
+        self.log.extend(lines);
         let finished = match &self.running {
             Running::Scan(j) | Running::Install(j) => { let g = j.lock().unwrap(); if !g.status.is_empty() && !g.done { self.status = g.status.clone(); } g.done }
             Running::None => false,
@@ -487,7 +491,7 @@ impl App {
             "update" => self.start_update(ctx),
             "report" => self.send_report(ctx),
             "tab" => {
-                self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("power") => Tab::Power, Some("log") => Tab::Log, _ => Tab::Updates };
+                self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("power") => Tab::Power, Some("memory") => Tab::Memory, Some("log") => Tab::Log, _ => Tab::Updates };
                 if self.tab == Tab::Backups { self.refresh_backups(); }
                 if self.tab == Tab::Power && !self.power.loaded { self.power_load(ctx); }
             }
@@ -499,6 +503,11 @@ impl App {
             "rollback" => { if self.selected_backup.is_some() && !self.busy() { self.confirm_rollback = self.selected_backup; } }
             "rollbackYes" => { if let Some(i) = self.confirm_rollback.take() { self.do_rollback(i); } }
             "rollbackNo" => self.confirm_rollback = None,
+            "mem_purge" => match self.mem.purge_now(&RealMem) { Ok(line) => self.say(line), Err(e) => { self.mem.err = e.clone(); self.say(format!("[FAILED] Memory: {e}")); } },
+            "mem_auto" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.mem.on = on; if on { self.mem.err.clear(); self.say("Memory: automatic cleaning started"); } else { self.say("Memory: automatic cleaning stopped"); } },
+            "mem_poll" => if let Some(x) = v["v"].as_u64() { self.mem.poll_ms = memory::snap(x, memory::POLL_MS); },
+            "mem_standby" => if let Some(x) = v["v"].as_u64() { self.mem.rule.standby_mb = memory::snap(x, memory::STANDBY_MB); },
+            "mem_free" => if let Some(x) = v["v"].as_u64() { self.mem.rule.free_mb = memory::snap(x, memory::FREE_MB); },
             "power_tier" => if !self.power.busy { if let Some(t) = v["tier"].as_str().and_then(Tier::from_key) { self.power.selected = t; self.power_refresh_preview(ctx); } },
             "power_opt" => if !self.power.busy { if let Some(on) = v["on"].as_bool() {
                 match v["name"].as_str() { Some("usb") => self.power.opts.usb_off = on, Some("pcie") => self.power.opts.pcie_off = on, Some("ultimate") => self.power.opts.ultimate = on, Some("restore") => self.power.opts.restore_point = on, _ => {} }
@@ -570,7 +579,7 @@ impl App {
         json!({
             "version": VERSION, "machine": self.machine, "busy": busy, "status": self.status, "statusTone": st_tone, "statusIcon": st_icon, "progress": progress,
             "update": self.update.as_ref().map(|m| json!({ "version": m.version, "notes": m.notes })),
-            "tab": match self.tab { Tab::Updates => "updates", Tab::Installed => "installed", Tab::Backups => "backups", Tab::Power => "power", Tab::Log => "log" },
+            "tab": match self.tab { Tab::Updates => "updates", Tab::Installed => "installed", Tab::Backups => "backups", Tab::Power => "power", Tab::Memory => "memory", Tab::Log => "log" },
             "mode": match self.mode { Mode::Review => "review", Mode::Run => "run", Mode::Results => "results" },
             "scanned": self.scanned,
             "banner": self.banner.as_ref().map(|b| json!({ "kind": match b.kind { Kind::Info => "info", Kind::Good => "good", Kind::Warn => "warn", Kind::Bad => "bad" }, "text": b.text,
@@ -579,9 +588,24 @@ impl App {
             "pills": { "drivers": self.inventory.len(), "upIcon": up_icon, "upTone": up_tone, "upText": up_text, "missing": self.missing_count },
             "selN": sel_n, "selSize": size_text(Some(sel_mb)), "allTicked": !self.rows.is_empty() && self.rows.iter().all(|r| r.ticked),
             "report": { "available": !REPORT_URL.is_empty() && self.mode == Mode::Review, "count": crate::report::build(&self.info_rows).len(), "done": self.reported, "sending": self.report_rx.is_some() },
-            "restorePoint": self.restore_point, "log": self.log.join("\n"), "power": self.power_view(),
+            "restorePoint": self.restore_point, "log": self.log.join("\n"), "power": self.power_view(), "memory": self.memory_view(),
             "confirm": self.confirm_rollback.and_then(|i| self.backups.get(i)).map(|b| json!({ "device": b.entry.device, "version": b.entry.old_version })),
         })
+    }
+
+    fn memory_view(&self) -> Value {
+        let m = &self.mem;
+        let sz = |b: u64| size_text(Some((b / memory::MB) as f64));
+        let st = m.stats.map(|s| {
+            let t = s.total.max(1) as f64;
+            let in_use = s.total.saturating_sub(s.available);
+            json!({ "total": sz(s.total), "inUse": sz(in_use), "available": sz(s.available), "standby": sz(s.standby), "modified": sz(s.modified), "free": sz(s.free),
+                "pctUse": (in_use as f64 / t * 100.0).round(), "pctStandby": (s.standby as f64 / t * 100.0).round(), "pctFree": (s.free as f64 / t * 100.0).round() })
+        });
+        let mb = |b: u64| b / memory::MB;
+        json!({ "stats": st, "err": m.err, "note": m.note, "on": m.on, "purges": m.purges, "poll": m.poll_ms, "standbyMb": m.rule.standby_mb, "freeMb": m.rule.free_mb,
+            "standbyNowMb": m.stats.map(|s| mb(s.standby)), "freeNowMb": m.stats.map(|s| mb(s.free)), "wouldClean": m.stats.map(|s| m.rule.hit(&s)),
+            "pollR": memory::POLL_MS, "standbyR": memory::STANDBY_MB, "freeR": memory::FREE_MB })
     }
 
     fn power_view(&self) -> Value {
