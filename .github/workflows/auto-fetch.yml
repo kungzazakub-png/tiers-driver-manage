@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read the report (data only: the text is parsed, never executed)
+      - name: Read the report (the text is only parsed as data, never executed)
         shell: pwsh
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
