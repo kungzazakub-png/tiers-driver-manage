@@ -152,7 +152,7 @@ fn button(ui: &mut egui::Ui, text: &str, primary: bool, link: bool, enabled: boo
         else if primary { (ACCENT, Color32::WHITE, Stroke::NONE) }
         else if link { (Color32::TRANSPARENT, ACCENT_DARK, Stroke::NONE) }
         else { (Color32::WHITE, ACCENT_DARK, Stroke::new(1.0, Color32::from_rgb(170, 190, 235))) };
-    let mut b = egui::Button::new(sbold(text).color(fg).size(if primary { 14.5 } else { 13.5 })).fill(fill).stroke(stroke).corner_radius(CornerRadius::same(6)).min_size(min);
+    let mut b = egui::Button::new(sbold(text).color(fg).size(sz(if primary { 14.5 } else { 13.5 }))).fill(fill).stroke(stroke).corner_radius(CornerRadius::same(6)).min_size(min);
     if link { b = b.frame(false); }
     ui.add_enabled(enabled, b).on_hover_cursor(egui::CursorIcon::PointingHand)
 }
@@ -164,6 +164,7 @@ pub fn iso_now() -> String {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, cfg: Config, screenshot: Option<PathBuf>) -> App {
+        PPP.store(cc.egui_ctx.pixels_per_point().to_bits(), std::sync::atomic::Ordering::Relaxed);
         let mut style = (*cc.egui_ctx.style()).clone();
         style.visuals = egui::Visuals::light();
         style.visuals.panel_fill = PAGE;
@@ -173,6 +174,7 @@ impl App {
         style.spacing.item_spacing = Vec2::new(8.0, 6.0);
         for (_, f) in style.text_styles.iter_mut() { if f.size < 13.0 { f.size = 13.0; } }
         if let Some(f) = style.text_styles.get_mut(&egui::TextStyle::Body) { f.size = 14.0; }
+        for (_, f) in style.text_styles.iter_mut() { f.size = sz(f.size); }
         style.spacing.item_spacing = Vec2::new(8.0, 6.0);
         style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, BORDER);
         style.visuals.text_cursor.stroke = Stroke::new(2.0, ACCENT);
@@ -470,15 +472,15 @@ impl App {
             ui.add_space(14.0);
             if let Some(t) = &self.logo { ui.add(egui::Image::new(t).fit_to_exact_size(Vec2::splat(34.0))); }
             ui.add_space(6.0);
-            ui.label(sbold("TierS Driver Manage").size(18.0).color(NAVY));
+            ui.label(sbold("TierS Driver Manage").size(sz(18.0)).color(NAVY));
             ui.add_space(14.0);
             let (r, _) = ui.allocate_exact_size(Vec2::new(1.0, 20.0), Sense::hover());
             ui.painter().rect_filled(r, CornerRadius::ZERO, BORDER);
             ui.add_space(10.0);
-            ui.label(RichText::new(&self.machine).color(MUTED).size(13.0));
+            ui.label(RichText::new(&self.machine).color(MUTED).size(sz(13.0)));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.add_space(14.0);
-                ui.label(RichText::new(format!("v{VERSION}")).color(MUTED).size(13.0));
+                ui.label(RichText::new(format!("v{VERSION}")).color(MUTED).size(sz(13.0)));
                 if let Some(m) = self.update.clone() {
                     ui.add_space(8.0);
                     if button(ui, &format!("Update to {}", m.version), false, false, !self.busy(), Vec2::new(0.0, 30.0)).on_hover_text(m.notes.clone()).clicked() { self.start_update(ctx); }
@@ -494,7 +496,7 @@ impl App {
             ui.add_space(8.0);
             let (icon, color) = if self.status.starts_with("Stopped") { (Some(Icon::Cross), BAD) } else if self.status.starts_with("Done") || self.status.starts_with("Scan complete") { (Some(Icon::Check), GOOD) } else if self.busy() { (Some(Icon::Dot), ACCENT) } else { (None, MUTED) };
             if let Some(i) = icon { paint_icon(ui, i, color, 18.0); }
-            ui.label(RichText::new(&self.status).color(if color == MUTED { MUTED } else { color }).size(14.0));
+            ui.label(RichText::new(&self.status).color(if color == MUTED { MUTED } else { color }).size(sz(14.0)));
         });
         ui.add_space(10.0);
         if self.busy() { ui.add(egui::ProgressBar::new(self.run_fraction()).desired_height(3.0).corner_radius(CornerRadius::ZERO).animate(true)); } else { ui.add_space(3.0); }
@@ -513,7 +515,7 @@ impl App {
     /// One bordered, clickable summary pill; returns true when clicked.
     fn pill(ui: &mut egui::Ui, icon: Icon, color: Color32, text: String) -> bool {
         let r = egui::Frame::new().fill(Color32::WHITE).stroke(Stroke::new(1.0, BORDER)).corner_radius(CornerRadius::same(14)).inner_margin(Margin::symmetric(10, 4)).show(ui, |ui| {
-            ui.horizontal(|ui| { paint_icon(ui, icon, color, 16.0); ui.label(sbold(text).size(13.0).color(TEXT)); });
+            ui.horizontal(|ui| { paint_icon(ui, icon, color, 16.0); ui.label(sbold(text).size(sz(13.0)).color(TEXT)); });
         }).response.interact(Sense::click());
         if r.hovered() { ui.painter().rect_stroke(r.rect, CornerRadius::same(14), Stroke::new(1.0, ACCENT), egui::StrokeKind::Inside); }
         r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
@@ -525,7 +527,7 @@ impl App {
             ui.add_space(20.0);
             for (t, name) in [(Tab::Updates, "Updates"), (Tab::Installed, "Installed drivers"), (Tab::Backups, "Backups"), (Tab::Log, "Log")] {
                 let active = self.tab == t;
-                let font = egui::FontId::new(14.5, egui::FontFamily::Name("semibold".into()));
+                let font = egui::FontId::new(sz(14.5), egui::FontFamily::Name("semibold".into()));
                 let color = if active { ACCENT } else { MUTED };
                 let w = ui.painter().layout_no_wrap(name.into(), font.clone(), color).size().x + 28.0;
                 let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, 40.0), Sense::click());
@@ -566,7 +568,7 @@ impl App {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 paint_icon(ui, icon, fg, 20.0);
-                ui.add(egui::Label::new(RichText::new(text).size(14.0).color(TEXT)).wrap());
+                ui.add(egui::Label::new(RichText::new(text).size(sz(14.0)).color(TEXT)).wrap());
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     for (id, t, primary, link, enabled) in &btns { if button(ui, t, *primary, *link, *enabled, Vec2::new(0.0, 34.0)).clicked() { clicked = Some(*id); } }
                 });
@@ -615,7 +617,7 @@ impl App {
                         Some(Code::Dl | Code::Inst) => paint_icon(ui, Icon::Dot, ACCENT, 18.0), Some(Code::Wait) => paint_icon(ui, Icon::Ring, MUTED, 18.0),
                         None => if is_system_class(&offer.class) { paint_icon(ui, Icon::Shield, WARN, 18.0) },
                     } });
-                    row.col(|ui| { ui.label(RichText::new(&offer.title).size(14.0)).on_hover_text(&offer.title); });
+                    row.col(|ui| { ui.label(RichText::new(&offer.title).size(sz(14.0))).on_hover_text(&offer.title); });
                     row.col(|ui| { ui.label(class_label(&offer.class)); });
                     row.col(|ui| { ui.label(source_label(&offer.source)); });
                     row.col(|ui| { ui.label(date_text(&offer.date)); });
@@ -627,7 +629,7 @@ impl App {
                             Some(Code::Skip) => (if reason.is_empty() { "Skipped".into() } else { format!("Skipped: {}", plain_reason(&reason)) }, WARN),
                             None => if is_system_class(&offer.class) { ("Review first: affects the whole PC".into(), WARN) } else { (String::new(), MUTED) },
                         };
-                        let l = ui.add(egui::Label::new(sbold(&text).size(12.5).color(color)).wrap());
+                        let l = ui.add(egui::Label::new(sbold(&text).size(sz(12.5)).color(color)).wrap());
                         if !reason.is_empty() || is_system_class(&offer.class) { l.on_hover_text(if reason.is_empty() { text.clone() } else { format!("{text}\n({reason})") }); }
                     });
                     row_divider(&painter, &row.response());
@@ -658,7 +660,7 @@ impl App {
 
     fn backups_table(&mut self, ui: &mut egui::Ui) {
         if self.backups.is_empty() {
-            ui.centered_and_justified(|ui| { ui.label(RichText::new("No backups yet\nBefore a driver is replaced, the one it replaces is saved here so you can roll back.").size(15.0).color(MUTED)); });
+            ui.centered_and_justified(|ui| { ui.label(RichText::new("No backups yet\nBefore a driver is replaced, the one it replaces is saved here so you can roll back.").size(sz(15.0)).color(MUTED)); });
             return;
         }
         let avail = ui.available_height();
@@ -736,6 +738,10 @@ impl App {
     }
 }
 
+static PPP: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x3f800000);
+/// Font sizes are snapped to whole screen pixels: fractional glyph sizes blur the stems.
+fn sz(v: f32) -> f32 { let p = f32::from_bits(PPP.load(std::sync::atomic::Ordering::Relaxed)).max(0.5); ((v * p).round() / p).max(1.0 / p) }
+
 fn sbold(t: impl Into<String>) -> RichText { RichText::new(t.into()).family(egui::FontFamily::Name("semibold".into())) }
 
 /// Square check box: white with a border, accent fill and a white tick when on.
@@ -759,7 +765,7 @@ fn check(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
 
 /// Column header cell: muted semibold text with a line under it.
 fn th(ui: &mut egui::Ui, t: &str) {
-    ui.label(sbold(t).size(12.5).color(MUTED));
+    ui.label(sbold(t).size(sz(12.5)).color(MUTED));
     let r = ui.max_rect();
     ui.painter().hline(r.x_range().expand(4.0), r.bottom(), Stroke::new(1.0, BORDER));
 }
@@ -796,9 +802,9 @@ impl eframe::App for App {
                                 else { ("Scan this PC for driver updates", "Scan finds newer drivers, you review the list, then install.\nIt takes about 1–2 minutes and needs an internet connection.", NAVY) };
                             ui.vertical_centered(|ui| {
                                 ui.add_space((ui.available_height() / 2.0 - 60.0).max(20.0));
-                                ui.label(sbold(title).size(22.0).color(color));
+                                ui.label(sbold(title).size(sz(22.0)).color(color));
                                 ui.add_space(6.0);
-                                ui.label(RichText::new(sub).size(14.5).color(MUTED));
+                                ui.label(RichText::new(sub).size(sz(14.5)).color(MUTED));
                             });
                         } else { self.updates_table(ui); }
                     }
