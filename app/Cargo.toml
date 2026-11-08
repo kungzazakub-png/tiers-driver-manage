@@ -1,6 +1,6 @@
 [package]
 name = "tiers-driver-manage"
-version = "2.3.0"
+version = "2.4.0"
 edition = "2021"
 description = "TierS Driver Manage - scan and install drivers"
 publish = false
