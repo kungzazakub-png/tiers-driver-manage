@@ -19,6 +19,7 @@ pub mod winsys;
 pub mod ui;
 pub mod power;
 pub mod boost;
+pub mod game;
 pub mod memory;
 pub mod settings;
 pub mod report;

@@ -17,10 +17,14 @@ pub struct Settings {
     pub mem_poll_ms: u64,
     pub mem_standby_mb: u64,
     pub mem_free_mb: u64,
+    /// games with their own settings, and the "faster power plan while a game runs" switch
+    pub games: Vec<crate::game::Game>,
+    pub game_auto_plan: bool,
+    pub game_plan: String,
 }
 
 impl Default for Settings {
-    fn default() -> Settings { Settings { tray_on_close: false, mem_auto: false, mem_poll_ms: 1000, mem_standby_mb: 1024, mem_free_mb: 1024 } }
+    fn default() -> Settings { Settings { tray_on_close: false, mem_auto: false, mem_poll_ms: 1000, mem_standby_mb: 1024, mem_free_mb: 1024, games: vec![], game_auto_plan: false, game_plan: String::new() } }
 }
 
 impl Settings {
@@ -30,6 +34,7 @@ impl Settings {
         s.mem_poll_ms = memory::snap(s.mem_poll_ms, memory::POLL_MS);
         s.mem_standby_mb = memory::snap(s.mem_standby_mb, memory::STANDBY_MB);
         s.mem_free_mb = memory::snap(s.mem_free_mb, memory::FREE_MB);
+        s.games.retain(|g| crate::game::valid_exe(&g.exe)); // a hand-edited file must not create odd registry keys
         s
     }
 
@@ -105,7 +110,7 @@ mod tests {
     fn saved_settings_come_back_and_values_are_snapped() {
         let d = tmp("round");
         let p = d.join("settings.json");
-        let s = Settings { tray_on_close: true, mem_auto: true, mem_poll_ms: 2000, mem_standby_mb: 2048, mem_free_mb: 512 };
+        let s = Settings { tray_on_close: true, mem_auto: true, mem_poll_ms: 2000, mem_standby_mb: 2048, mem_free_mb: 512, games: vec![crate::game::Game { exe: "cs2.exe".into(), path: "C:\\g\\cs2.exe".into(), fso: true, prio: false }], game_auto_plan: true, game_plan: "abc".into() };
         s.save(&p).unwrap();
         assert_eq!(Settings::load(&p), s);
         assert!(!d.join("settings.json.tmp").exists());

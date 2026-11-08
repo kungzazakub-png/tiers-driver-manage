@@ -157,6 +157,7 @@ fn run_window(cfg: Config, demo: Option<String>, dir: std::path::PathBuf, start_
                 if tray.is_some() && app.tray_on_close() { window.set_visible(false); webview = None; last = None; }
                 else { *flow = ControlFlow::Exit; return; }
             }
+            Event::LoopDestroyed => { app.shutdown(); return; }
             Event::UserEvent(UserEvent::Close) => { *flow = ControlFlow::Exit; return; }
             Event::UserEvent(UserEvent::Show) => {
                 window.set_visible(true); window.set_minimized(false); window.set_focus();

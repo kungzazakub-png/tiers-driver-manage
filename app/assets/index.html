@@ -175,6 +175,11 @@ svg { display:block; flex:none; }
 .brow .n { font-weight:400; display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
 .brow .w { color:var(--muted); font-size:12px; grid-column:2; }
 .brow .badge { background:#fff; }
+.grow-row { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:8px 12px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; }
+.grow-row .gname { min-width:140px; }
+.grow-row label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+.grow-row .cb { margin:0; }
+.sel { font:400 12px var(--font); height:30px; border:1px solid #aabeeb; border-radius:6px; background:#fff; color:var(--text); padding:0 8px; max-width:100%; }
 /* Windows type scale: 12px regular for everything; semibold only for titles, like Explorer's selected tab and dialog titles */
 .top h1, .empty h2, .pw h3, .mcard h3, .dlg h3, .tab.on, .brow .n, .prow .n, .mrow .k b, .rec b { font-weight:600; }
 .mrow { margin:0 0 16px; }
@@ -310,6 +315,25 @@ function memoryFooter() {
   const tone = M.err ? ["cross", "bad"] : ["ring", "muted"];
   return `<div class="foot"><div class="grow"></div><span class="chip tone-${tone[1]}">${ico(tone[0], "tone-" + tone[1])}${esc(status)}</span><button class="btn primary" data-act="mem_purge">Clean standby list now</button></div>`;
 }
+function gamesSection(G) {
+  const row = (g, i) => `<div class="grow-row"><div class="gname" title="${esc(g.path)}"><b>${esc(g.exe)}</b></div>
+    <label><input class="cb" type="checkbox" data-game="${i}" data-what="fso" ${g.fso ? "checked" : ""} ${g.path ? "" : "disabled"} aria-label="Fullscreen optimizations off for ${esc(g.exe)}"><span>ปิด Fullscreen Optimizations</span></label>
+    <label><input class="cb" type="checkbox" data-game="${i}" data-what="prio" ${g.prio ? "checked" : ""} aria-label="High priority for ${esc(g.exe)}"><span>ลำดับความสำคัญ CPU/ดิสก์สูง</span></label>
+    <button class="btn link" data-gamedel="${i}">Remove</button></div>`;
+  const plan = G.plans.length ? `<select class="sel" data-gameplan aria-label="Power plan while gaming">${G.plan ? "" : `<option value="" selected>เลือกแผนพลังงาน...</option>`}${G.plans.map(p => `<option value="${esc(p.guid)}" ${p.guid === G.plan ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>` : `<span class="muted">ไม่พบแผนพลังงาน</span>`;
+  return `<section><h3>Per-game settings</h3>
+    <p class="mhelp" style="margin:0 0 10px">เลือกไฟล์ .exe ของเกม แล้วเลือกว่าจะให้ทำอะไรกับเกมนั้นโดยเฉพาะ ไม่กระทบโปรแกรมอื่น ลบเกมออกแล้วค่าเดิมกลับคืนให้ทันที</p>
+    ${G.list.length ? G.list.map(row).join("") : `<p class="muted" style="margin:0 0 10px">ยังไม่มีเกมในรายการ</p>`}
+    <button class="btn" data-act="game_add">Add game...</button>
+    <p class="mhelp"><b>ปิด Fullscreen Optimizations:</b> ให้เกมใช้โหมดเต็มจอแบบดั้งเดิม บางเกมหน่วงน้อยลง บางเกมไม่ต่าง ถ้าเกมมีปัญหา (ภาพกะพริบ, alt-tab ช้า) ให้ติ๊กออก<br>
+    <b>ลำดับความสำคัญสูง:</b> ให้ Windows จัดคิว CPU และดิสก์ให้เกมนี้ก่อน มีผลทุกครั้งที่เปิดเกม เกมที่มีระบบกันโกงบางตัวอาจไม่ชอบการตั้งค่านี้ ถ้าถูกเตือนหรือเกมไม่ยอมเปิด ให้ติ๊กออก</p></section>
+  <section><h3>Power plan while gaming</h3>
+    <div class="opts"><label><input class="cb" type="checkbox" data-gameauto ${G.auto ? "checked" : ""} ${G.plan && G.list.length ? "" : "disabled"}><span>สลับเป็นแผนพลังงานแรงเมื่อเปิดเกมในรายการ และคืนแผนเดิมเมื่อปิดเกม</span></label></div>
+    <div style="margin:10px 0 0 28px">${plan}</div>
+    ${G.note ? `<p class="mhelp" style="margin-top:10px"><b>${esc(G.note)}</b></p>` : ""}
+    <p class="mhelp">ต้องเพิ่มเกมในรายการด้านบนก่อน และเลือกแผน เช่น Ultimate Performance หรือ High performance (สร้างได้ที่แท็บ Power plan) โปรแกรมตรวจทุก 2 วินาที ทำงานต่อได้แม้ย่อเก็บอยู่ใน tray ถ้าคอมพิวเตอร์ดับกะทันหันขณะเล่นเกม แผนพลังงานแรงจะค้างไว้จนกว่าจะเปิดโปรแกรมนี้ใหม่และเปิดเกมอีกรอบ หรือเปลี่ยนแผนเองในแท็บ Power plan</p></section>`;
+}
+
 function boostPanel() {
   const B = S.boost;
   const row = x => `<label class="brow ${x.on ? "on" : ""}"><input class="cb" type="checkbox" data-boost="${x.id}" ${x.on ? "checked" : ""} aria-label="${esc(x.title)}">
@@ -320,6 +344,7 @@ function boostPanel() {
     <section><div class="rec">${ico("info")}<div><b>ควรคาดหวังแค่ไหน</b><small>ตัวเลือกเหล่านี้ช่วยตัดความหน่วงเล็กๆ และงานเบื้องหลัง ผลที่ได้คือภาพนิ่งขึ้นและเมาส์ตอบสนองดีขึ้น ไม่ได้ทำให้ FPS พุ่งขึ้นมาก ตัวที่ได้ผลมากกว่าคือแผนพลังงาน (แท็บ Power plan) ไดรเวอร์การ์ดจอรุ่นล่าสุด (แท็บ Updates) และการตั้งค่าลดหน่วงในเกมด้านล่าง ทุกสวิตช์ติ๊กออกได้ และจะคืนค่าเดิมที่เคยเป็นให้เป๊ะ</small></div></div></section>
     <section><h3>Recommended</h3>${rec.map(row).join("")}</section>
     <section><h3>Optional</h3><p class="mhelp" style="margin:0 0 10px">ลองเปิดทีละตัว แล้วเก็บไว้เฉพาะตัวที่เล่นเกมแล้วรู้สึกดีขึ้น</p>${opt.map(row).join("")}</section>
+    ${gamesSection(B.games)}
     <section><h3>Lowest input lag</h3>
       <p class="mhelp" style="margin-top:0"><b>${esc(B.tipName)}</b> ${esc(B.tip)}${B.gpus ? ` <span class="muted">การ์ดจอที่ตรวจพบ: ${esc(B.gpus)}</span>` : ""}</p>
       <p class="mhelp">เพิ่มเติม: เล่นแบบเต็มจอหรือ borderless และถ้าจอรองรับ G-Sync หรือ FreeSync ให้จำกัดเฟรมเรตต่ำกว่ารีเฟรชเรตของจอสัก 3–5 FPS</p></section>
@@ -427,8 +452,9 @@ function render() {
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-tab],[data-banner],[data-pick],[data-mem]'); if (!t || t.disabled) return;
-  if (t.dataset.act) send(t.dataset.act);
+  const t = e.target.closest('[data-act],[data-tab],[data-banner],[data-pick],[data-mem],[data-gamedel]'); if (!t || t.disabled) return;
+  if (t.dataset.gamedel !== undefined) send('game_remove', {i: +t.dataset.gamedel});
+  else if (t.dataset.act) send(t.dataset.act);
   else if (t.dataset.mem) send('mem_' + t.dataset.mem, {v: +t.dataset.v});
   else if (t.dataset.tab) send('tab', {tab: t.dataset.tab});
   else if (t.dataset.banner) send('banner', {id: t.dataset.banner});
@@ -445,6 +471,9 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.rng) { send('mem_' + t.dataset.rng, {v: +t.value}); return; }
+  if (t.dataset.game !== undefined) { send('game_set', {i: +t.dataset.game, what: t.dataset.what, v: t.checked ? 1 : 0}); return; }
+  if (t.dataset.gameauto !== undefined) { send('game_auto', {v: t.checked ? 1 : 0}); return; }
+  if (t.dataset.gameplan !== undefined) { send('game_plan', {guid: t.value}); return; }
   if (t.dataset.boost) { send('boost_set', {id: t.dataset.boost, v: t.checked ? 1 : 0}); return; }
   if (t.dataset.set) { send('set_' + t.dataset.set, {v: t.checked ? 1 : 0}); return; }
   if (t.dataset.tick !== undefined) send('tick', {i: +t.dataset.tick, on: t.checked});

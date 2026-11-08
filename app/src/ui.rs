@@ -9,6 +9,7 @@ use crate::update::{self, Manifest};
 use crate::power::{self, backup as pbackup, cfg as pcfg, hw::{self as phw, Hardware, Tier}, overlay::RealOverlay, profiles::{self, Opts}, Comparison, PreviewRow, Report};
 use crate::memory::{self, Monitor, RealMem};
 use crate::boost::{self, RegExe};
+use crate::game::{self, RealPower};
 use crate::settings::{self, Settings};
 use crate::{selfupdate, winsys, wu};
 use serde_json::{json, Value};
@@ -34,7 +35,7 @@ impl Ctx { fn repaint(&self) { (self.wake)() } }
 pub enum Tab { Updates, Installed, Backups, Power, Boost, Memory, Settings, Log }
 
 /// Boost tab state. `on` is read from the registry when the tab opens and after each change (not on every redraw).
-struct BoostUi { on: Vec<bool>, gpus: Vec<String>, loaded: bool, err: String, store: boost::Store, path: std::path::PathBuf }
+struct BoostUi { on: Vec<bool>, gpus: Vec<String>, loaded: bool, err: String, store: boost::Store, path: std::path::PathBuf, plans: Vec<(String, String)>, watch: game::Watch }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mode { Review, Run, Results }
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -149,8 +150,9 @@ impl App {
         let mut mem = Monitor::new();
         mem.on = settings.mem_auto; mem.poll_ms = settings.mem_poll_ms; mem.rule = memory::Rule { standby_mb: settings.mem_standby_mb, free_mb: settings.mem_free_mb };
         let boost_path = settings_path.with_file_name("boost.json");
+        let watch = game::Watch::new(settings.game_auto_plan, settings.game_plan.clone());
         App {
-            boost: BoostUi { on: vec![], gpus: vec![], loaded: false, err: String::new(), store: boost::load(&boost_path), path: boost_path },
+            boost: BoostUi { on: vec![], gpus: vec![], loaded: false, err: String::new(), store: boost::load(&boost_path), path: boost_path, plans: vec![], watch },
             mem, settings, settings_path, autostart: None, settings_err: String::new(),
             http: Arc::new(Real::new()), cfg: Arc::new(cfg), host: winsys::host_info(), machine: winsys::machine_summary(),
             tab: Tab::Updates, mode: Mode::Review, rows: vec![], info_rows: vec![], results: vec![], inventory: vec![], missing_count: 0,
@@ -165,7 +167,49 @@ impl App {
     fn boost_refresh(&mut self) {
         self.boost.on = boost::TWEAKS.iter().map(|t| boost::is_on(&RegExe, t)).collect();
         if !self.boost.loaded { self.boost.gpus = boost::gpu_names(); self.boost.loaded = true; }
+        self.boost.plans = power::cfg::list(&RealSys).map(|v| v.into_iter().map(|s| (s.guid, s.name)).collect()).unwrap_or_default();
+        // no plan chosen yet: suggest Ultimate Performance, else High performance
+        if self.settings.game_plan.is_empty() {
+            let pick = |f: &dyn Fn(&str, &str) -> bool| self.boost.plans.iter().find(|(g, n)| f(g, &n.to_lowercase())).map(|p| p.0.clone());
+            if let Some(g) = pick(&|g, n| g == power::cfg::ULTIMATE || n.contains("ultimate")).or_else(|| pick(&|_, n| n.contains("high performance"))) { self.boost.watch.plan = g; }
+        }
     }
+
+    fn game_exes(&self) -> Vec<String> { self.settings.games.iter().map(|g| g.exe.clone()).collect() }
+
+    fn game_add(&mut self) {
+        let Some(path) = game::pick_exe() else { return };
+        let exe = game::exe_of_path(&path);
+        if !game::valid_exe(&exe) { self.boost.err = format!("{exe} is not a usable program file name"); return; }
+        if self.settings.games.iter().any(|g| g.exe.eq_ignore_ascii_case(&exe)) { self.boost.err = format!("{exe} is already in the list"); return; }
+        self.settings.games.push(game::Game { exe, path, fso: true, prio: false });
+        let i = self.settings.games.len() - 1;
+        self.game_apply(i);
+    }
+
+    /// Writes the registry for game `i`, then saves the list.
+    fn game_apply(&mut self, i: usize) {
+        let Some(g) = self.settings.games.get(i).cloned() else { return };
+        match game::apply(&RegExe, &mut self.boost.store, &g) {
+            Ok(()) => { self.boost.err.clear(); self.say(format!("Game settings: {} updated", g.exe)); }
+            Err(e) => { self.boost.err = e.clone(); self.say(format!("[FAILED] Game settings: {e}")); }
+        }
+        if let Err(e) = boost::save(&self.boost.path, &self.boost.store) { self.boost.err = format!("Could not save the undo information: {e}"); }
+        self.save_settings();
+    }
+
+    fn game_remove(&mut self, i: usize) {
+        let Some(g) = self.settings.games.get(i).cloned() else { return };
+        match game::remove(&RegExe, &mut self.boost.store, &g) {
+            Ok(()) => { self.settings.games.remove(i); self.boost.err.clear(); self.say(format!("Game settings: {} removed and put back", g.exe)); }
+            Err(e) => { self.boost.err = e.clone(); self.say(format!("[FAILED] Game settings: {e}")); }
+        }
+        let _ = boost::save(&self.boost.path, &self.boost.store);
+        self.save_settings();
+    }
+
+    /// Program is closing: do not leave the PC on the game power plan.
+    pub fn shutdown(&mut self) { self.boost.watch.finish(&RealPower); }
 
     fn boost_apply(&mut self, id: &str, on: bool) {
         let Some(t) = boost::tweak(id) else { return };
@@ -185,7 +229,9 @@ impl App {
         let items: Vec<Value> = boost::TWEAKS.iter().enumerate().map(|(i, t)| json!({ "id": t.id, "title": t.title, "why": t.why, "effect": t.effect, "restart": t.restart, "rec": t.recommended,
             "on": b.on.get(i).copied().unwrap_or(false) })).collect();
         let rec_done = boost::TWEAKS.iter().enumerate().filter(|(_, t)| t.recommended).all(|(i, _)| b.on.get(i).copied().unwrap_or(false));
-        json!({ "items": items, "err": b.err, "gpus": b.gpus.join(", "), "tipName": tip_name, "tip": tip, "recDone": rec_done, "canUndo": !b.store.is_empty() })
+        let games = json!({ "list": self.settings.games.iter().map(|g| json!({ "exe": g.exe, "path": g.path, "fso": g.fso, "prio": g.prio })).collect::<Vec<_>>(),
+            "auto": b.watch.on, "plan": b.watch.plan, "plans": b.plans.iter().map(|(g, n)| json!({ "guid": g, "name": n })).collect::<Vec<_>>(), "note": b.watch.note, "running": b.watch.running() });
+        json!({ "items": items, "games": games, "err": b.err, "gpus": b.gpus.join(", "), "tipName": tip_name, "tip": tip, "recDone": rec_done, "canUndo": !b.store.is_empty() })
     }
 
     /// Closing the window hides it to the tray instead of quitting.
@@ -342,6 +388,9 @@ impl App {
         }
         if reload_power { self.power_load(ctx); }
         let lines = self.mem.tick(&RealMem, std::time::Instant::now(), self.tab == Tab::Memory);
+        self.log.extend(lines);
+        let exes = self.game_exes();
+        let lines = self.boost.watch.tick(&RealPower, std::time::Instant::now(), &exes);
         self.log.extend(lines);
         let finished = match &self.running {
             Running::Scan(j) | Running::Install(j) => { let g = j.lock().unwrap(); if !g.status.is_empty() && !g.done { self.status = g.status.clone(); } g.done }
@@ -584,9 +633,31 @@ impl App {
             "mem_poll" => if let Some(x) = v["v"].as_u64() { self.mem.poll_ms = memory::snap(x, memory::POLL_MS); self.save_mem_settings(); },
             "mem_standby" => if let Some(x) = v["v"].as_u64() { self.mem.rule.standby_mb = memory::snap(x, memory::STANDBY_MB); self.save_mem_settings(); },
             "mem_free" => if let Some(x) = v["v"].as_u64() { self.mem.rule.free_mb = memory::snap(x, memory::FREE_MB); self.save_mem_settings(); },
+            "game_add" => { self.game_add(); self.boost_refresh(); }
+            "game_set" => if let (Some(i), Some(what), Some(on)) = (i, v["what"].as_str(), v["v"].as_u64().map(|x| x == 1)) {
+                if let Some(g) = self.settings.games.get_mut(i) { match what { "fso" => g.fso = on, "prio" => g.prio = on, _ => {} } }
+                self.game_apply(i);
+            },
+            "game_remove" => if let Some(i) = i { self.game_remove(i); },
+            "game_auto" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) {
+                self.settings.game_auto_plan = on; self.boost.watch.on = on;
+                self.settings.game_plan = self.boost.watch.plan.clone();
+                self.save_settings();
+            },
+            "game_plan" => if let Some(g) = v["guid"].as_str() { if self.boost.plans.iter().any(|p| p.0 == g) { self.settings.game_plan = g.to_string(); self.boost.watch.plan = g.to_string(); self.save_settings(); } },
             "boost_set" => if let (Some(id), Some(on)) = (v["id"].as_str(), v["v"].as_u64().map(|x| x == 1)) { self.boost_apply(id, on); self.boost_refresh(); },
             "boost_rec" => { for t in boost::TWEAKS.iter().filter(|t| t.recommended) { self.boost_apply(t.id, true); } self.boost_refresh(); }
-            "boost_undo" => { let ids: Vec<String> = self.boost.store.keys().cloned().collect(); for id in ids { self.boost_apply(&id, false); } self.boost_refresh(); }
+            "boost_undo" => {
+                let ids: Vec<String> = self.boost.store.keys().cloned().collect();
+                for id in ids {
+                    if boost::tweak(&id).is_some() { self.boost_apply(&id, false); }
+                    else if let Err(e) = boost::set_raw(&RegExe, &mut self.boost.store, &id, &[], false) { self.boost.err = e; } // a per-game setting
+                }
+                for g in self.settings.games.iter_mut() { g.fso = false; g.prio = false; }
+                let _ = boost::save(&self.boost.path, &self.boost.store);
+                self.save_settings();
+                self.boost_refresh();
+            }
             "set_tray" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.settings.tray_on_close = on; self.save_settings(); },
             "set_autostart" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.set_autostart(on); },
             "power_tier" => if !self.power.busy { if let Some(t) = v["tier"].as_str().and_then(Tier::from_key) { self.power.selected = t; self.power_refresh_preview(ctx); } },

@@ -170,6 +170,24 @@ pub fn set(reg: &dyn Reg, store: &mut Store, t: &Tweak, on: bool) -> Result<(), 
     }
 }
 
+/// Same backed-up switch for values chosen at run time (per-game settings). `items`: (key, name, new value; None = delete).
+pub fn set_raw(reg: &dyn Reg, store: &mut Store, id: &str, items: &[(String, String, Option<(String, String)>)], on: bool) -> Result<(), String> {
+    if on {
+        if store.contains_key(id) { return Ok(()); }
+        let priors: Vec<Prior> = items.iter().map(|(k, n, _)| Prior { key: k.clone(), name: n.clone(), old: reg.get(k, n) }).collect();
+        for (i, (k, n, v)) in items.iter().enumerate() {
+            let r = match v { Some((kind, d)) => reg.set(k, n, kind, d), None => reg.delete(k, n) };
+            if let Err(e) = r { for p in &priors[..i] { let _ = put_back(reg, p); } return Err(e); }
+        }
+        store.insert(id.into(), priors);
+        Ok(())
+    } else if let Some(priors) = store.get(id).cloned() {
+        for p in &priors { put_back(reg, p)?; }
+        store.remove(id);
+        Ok(())
+    } else { Ok(()) }
+}
+
 pub fn tweak(id: &str) -> Option<&'static Tweak> { TWEAKS.iter().find(|t| t.id == id) }
 
 /// Applies the mouse values to the running session (the registry alone only takes effect at the next sign-in).
