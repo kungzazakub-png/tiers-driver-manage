@@ -179,13 +179,13 @@ impl App {
         let hover = Color32::from_rgb(243, 246, 251);
         style.visuals.widgets.hovered.weak_bg_fill = hover; style.visuals.widgets.hovered.bg_fill = hover; style.visuals.widgets.active.weak_bg_fill = hover;
         cc.egui_ctx.set_style(style);
-        // Segoe UI ships with Windows: the program looks native without bundling a font
+        // Segoe UI Variable (the Windows 11 system font) ships with Windows: the program looks native without bundling a font; Leelawadee covers Thai
         let mut fonts = egui::FontDefinitions::default();
         let mut semibold = vec![];
-        for (name, file, is_semi) in [("segoe", "segoeui.ttf", false), ("segoe-semibold", "seguisb.ttf", true)] {
+        for (name, file, is_semi) in [("segoe", "SegUIVar.ttf", false), ("segoe-classic", "segoeui.ttf", false), ("leelawadee", "LeelawUI.ttf", false), ("segoe-symbols", "seguisym.ttf", false), ("segoe-semibold", "seguisb.ttf", true)] {
             if let Ok(b) = std::fs::read(format!("C:\\Windows\\Fonts\\{file}")) {
                 fonts.font_data.insert(name.into(), Arc::new(egui::FontData::from_owned(b)));
-                if is_semi { semibold.push(name.to_string()); } else { fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap().insert(0, name.into()); }
+                if is_semi { semibold.push(name.to_string()); } else { let f = fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap(); let at = f.iter().position(|n| !["segoe", "segoe-classic", "leelawadee", "segoe-symbols"].contains(&n.as_str())).unwrap_or(f.len()); f.insert(at, name.into()); }
             }
         }
         let mut chain = semibold; chain.extend(fonts.families[&egui::FontFamily::Proportional].clone());
