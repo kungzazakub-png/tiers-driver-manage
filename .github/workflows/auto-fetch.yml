@@ -1,14 +1,15 @@
 name: Auto-fetch drivers for reported hardware
 
-# Runs when the report worker files an issue, or by hand with one hardware ID.
+# Every hour: collect the reports the Worker has stored, resolve new hardware IDs, publish the signed catalog.
+# By hand: run it with one hardware ID.
 on:
-  issues:
-    types: [opened]
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       hwid:
-        description: 'One hardware ID, e.g. PCI\VEN_10EC&DEV_8168'
-        required: true
+        description: 'One hardware ID to resolve now (empty = collect the stored reports)'
+        required: false
 
 # one run at a time: each run commits and publishes the catalog
 concurrency:
@@ -17,42 +18,47 @@ concurrency:
 
 permissions:
   contents: write   # upload driver zips, publish the catalog, commit driverdb.json
-  issues: write     # close the report with the result
 
 jobs:
   fetch:
-    # only issues filed by the report worker's GitHub account (repository variable REPORT_BOT_LOGIN) are trusted as reports
-    if: github.event_name == 'workflow_dispatch' || (github.event.issue.user.login == vars.REPORT_BOT_LOGIN && startsWith(github.event.issue.title, 'HWID report'))
     runs-on: windows-latest
     timeout-minutes: 40
     env:
       GH_TOKEN: ${{ github.token }}
+      WORKER_URL: ${{ vars.REPORT_WORKER_URL }}
+      READ_KEY: ${{ secrets.REPORT_READ_KEY }}
+      MANUAL_HWID: ${{ inputs.hwid }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read the report (the text is only parsed as data, never executed)
+      - name: Collect the reports (the text is only parsed as data, never executed)
         shell: pwsh
-        env:
-          ISSUE_BODY: ${{ github.event.issue.body }}
-          MANUAL_HWID: ${{ inputs.hwid }}
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
+          $devices = @(); $keys = @()
           if ($env:MANUAL_HWID) {
-            $doc = @{ v = 1; devices = @(@{ ids = @($env:MANUAL_HWID); class = ''; name = 'manual' }) } | ConvertTo-Json -Depth 5
-          } else {
-            if ($env:ISSUE_BODY -notmatch '(?s)```json\s*(\{.*?\})\s*```') { throw 'No JSON block in the report' }
-            $doc = $Matches[1]
+            $devices = @(@{ ids = @($env:MANUAL_HWID); class = ''; name = 'manual' })
+          } elseif ($env:WORKER_URL -and $env:READ_KEY) {
+            $r = Invoke-RestMethod -Uri "$($env:WORKER_URL)/pending" -Headers @{ Authorization = "Bearer $($env:READ_KEY)" } -TimeoutSec 60
+            foreach ($i in @($r.items)) { $keys += $i.key; $devices += @($i.devices) }
           }
-          [IO.File]::WriteAllText("$PWD\dist\reports.json", $doc, (New-Object Text.UTF8Encoding($false)))
+          "Reports: $($devices.Count) device(s) in $($keys.Count) report(s)"
+          if (-not $devices.Count) { "HAVE=0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8; return }
+          "HAVE=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          [IO.File]::WriteAllText("$PWD\dist\reports.json", (@{ v = 1; devices = $devices } | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText("$PWD\dist\keys.json", (ConvertTo-Json -InputObject @($keys)), (New-Object Text.UTF8Encoding($false)))
 
       - uses: Swatinem/rust-cache@v2
+        if: env.HAVE == '1'
         with:
           workspaces: app
 
       - name: Build the fetcher
+        if: env.HAVE == '1'
         run: cargo build --release --bin fetcher --manifest-path app/Cargo.toml
 
       - name: Resolve hardware IDs through the Microsoft Update Catalog
+        if: env.HAVE == '1'
         shell: pwsh
         run: |
           ./app/target/release/fetcher.exe --reports dist/reports.json --catalog DriverScan/driverdb.json --out dist/pkgs --repo ${{ github.repository }} --max 10 | Tee-Object dist/result.txt
@@ -61,7 +67,7 @@ jobs:
           "ZIP_COUNT=$($zips.Count)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Mirror the packages (release "drivers")
-        if: env.ZIP_COUNT != '0'
+        if: env.HAVE == '1' && env.ZIP_COUNT != '0'
         shell: pwsh
         run: |
           gh release view drivers 2>$null | Out-Null
@@ -70,7 +76,7 @@ jobs:
           gh release upload drivers @zips --clobber
 
       - name: Sign and publish the catalog
-        if: env.ZIP_COUNT != '0'
+        if: env.HAVE == '1' && env.ZIP_COUNT != '0'
         shell: pwsh
         env:
           UPDATE_PRIVATE_KEY_XML: ${{ secrets.UPDATE_PRIVATE_KEY_XML }}
@@ -82,7 +88,7 @@ jobs:
           try { ./Publish-Catalog.ps1 } finally { Remove-Item (Join-Path $dir 'private.xml') -Force -ErrorAction SilentlyContinue }
 
       - name: Commit the catalog
-        if: env.ZIP_COUNT != '0'
+        if: env.HAVE == '1' && env.ZIP_COUNT != '0'
         shell: pwsh
         run: |
           git config user.name 'tiers-auto-fetcher'
@@ -92,10 +98,10 @@ jobs:
           git pull --rebase
           git push
 
-      - name: Close the report
-        if: github.event_name == 'issues' && always()
+      # only after everything above worked: the reports are removed from the Worker (a failed run is retried next hour)
+      - name: Acknowledge the reports
+        if: env.HAVE == '1' && env.WORKER_URL != '' && env.MANUAL_HWID == ''
         shell: pwsh
         run: |
-          $r = if (Test-Path dist/result.txt) { Get-Content dist/result.txt -Raw } else { 'The run failed before a result was written.' }
-          $fence = '```'
-          gh issue close ${{ github.event.issue.number }} --comment "Result:`n$fence`n$r`n$fence"
+          $keys = Get-Content dist/keys.json -Raw
+          Invoke-RestMethod -Method Post -Uri "$($env:WORKER_URL)/ack" -Headers @{ Authorization = "Bearer $($env:READ_KEY)" } -ContentType 'application/json' -Body "{`"keys`":$keys}" -TimeoutSec 60
