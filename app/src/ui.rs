@@ -18,7 +18,7 @@ pub const REPO: &str = "kungzazakub-png/tiers-driver-manage";
 pub const PUBLIC_KEY: &str = include_str!("../assets/UpdatePublicKey.xml");
 pub const SHIPPED_CATALOG: &str = include_str!("../assets/driverdb.json");
 /// Where "Report" sends hardware IDs (the Cloudflare Worker in backend/worker). Empty = the button is hidden.
-pub const REPORT_URL: &str = "";
+pub const REPORT_URL: &str = "https://tiers-hwid-report.tiers-driver-manage.workers.dev/report";
 pub const PAGE_HTML: &str = include_str!("../assets/index.html");
 const MAX_PASSES: u32 = 3;
 
