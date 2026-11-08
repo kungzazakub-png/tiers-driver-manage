@@ -1,157 +1,177 @@
-﻿{
-    "version":  1,
-    "updated":  "2026-11-07",
-    "drivers":  [
-                    {
-                        "name":  "Intel Wi-Fi Driver",
-                        "publisher":  "Intel",
-                        "match":  [
-                                      "PCI\\VEN_8086\u0026DEV_7A70*",
-                                      "PCI\\VEN_8086\u0026DEV_51F0*",
-                                      "PCI\\VEN_8086\u0026DEV_51F1*",
-                                      "PCI\\VEN_8086\u0026DEV_54F0*",
-                                      "PCI\\VEN_8086\u0026DEV_2725*",
-                                      "PCI\\VEN_8086\u0026DEV_272B*",
-                                      "PCI\\VEN_8086\u0026DEV_A0F0*",
-                                      "PCI\\VEN_8086\u0026DEV_43F0*",
-                                      "PCI\\VEN_8086\u0026DEV_02F0*"
-                                  ],
-                        "version":  "24.80.0.2",
-                        "date":  "2026-10-20",
-                        "sizeMB":  72.3,
-                        "type":  "installer",
-                        "url":  "https://downloadmirror.intel.com/929786/WiFi-24.80.0-Driver64-Win10-Win11.exe",
-                        "sha256":  "40D2F714830B406CCC1F9C00547AD6090F164F928748E38F27A1C7C0EF5ED5EA",
-                        "os":  [
-                                   "10",
-                                   "11"
-                               ],
-                        "arch":  [
-                                     "x64"
-                                 ],
-                        "class":  "NET",
-                        "signer":  "Intel Corporation",
-                        "silentArgs":  "-q -s"
-                    },
-                    {
-                        "name":  "Intel Bluetooth Driver",
-                        "publisher":  "Intel",
-                        "match":  [
-                                      "USB\\VID_8087\u0026PID_0033*",
-                                      "USB\\VID_8087\u0026PID_0032*",
-                                      "USB\\VID_8087\u0026PID_0026*",
-                                      "USB\\VID_8087\u0026PID_0036*"
-                                  ],
-                        "version":  "24.80.0.2",
-                        "date":  "2026-10-20",
-                        "sizeMB":  61.1,
-                        "type":  "installer",
-                        "url":  "https://downloadmirror.intel.com/930964/BT-24.80.0-64UWD-Win10-Win11.exe",
-                        "sha256":  "511E01A35F8B6BDDB6463C74062467F69D08E0662059ABC515F879DFE2675724",
-                        "os":  [
-                                   "10",
-                                   "11"
-                               ],
-                        "arch":  [
-                                     "x64"
-                                 ],
-                        "class":  "BLUETOOTH",
-                        "signer":  "Intel Corporation",
-                        "silentArgs":  "/quiet"
-                    },
-                    {
-                        "name":  "NVIDIA GeForce Game Ready Driver",
-                        "publisher":  "NVIDIA",
-                        "match":  [
-                                      "PCI\\VEN_10DE\u0026DEV_*"
-                                  ],
-                        "version":  "32.0.16.2114",
-                        "date":  "2026-11-04",
-                        "sizeMB":  989.2,
-                        "type":  "installer",
-                        "url":  "https://us.download.nvidia.com/Windows/621.14/621.14-desktop-win10-win11-64bit-international-dch-whql.exe",
-                        "sha256":  "9867B0C8689972C419885935BB386D999AFFFA33AFD514CADB384EE84EFCD3D3",
-                        "os":  [
-                                   "10",
-                                   "11"
-                               ],
-                        "arch":  [
-                                     "x64"
-                                 ],
-                        "class":  "DISPLAY",
-                        "signer":  "NVIDIA Corporation",
-                        "silentArgs":  "-s -noreboot",
-                        "nameLike":  [
-                                         "NVIDIA GeForce RTX*",
-                                         "NVIDIA GeForce GTX 16*"
-                                     ]
-                    },
-                    {
-                        "name":  "Intel Arc Graphics Driver",
-                        "publisher":  "Intel",
-                        "match":  [
-                                      "PCI\\VEN_8086\u0026DEV_56*",
-                                      "PCI\\VEN_8086\u0026DEV_E2*",
-                                      "PCI\\VEN_8086\u0026DEV_7D*",
-                                      "PCI\\VEN_8086\u0026DEV_64*",
-                                      "PCI\\VEN_8086\u0026DEV_B0*"
-                                  ],
-                        "version":  "32.0.101.9175",
-                        "date":  "2026-11-04",
-                        "sizeMB":  862.6,
-                        "type":  "installer",
-                        "url":  "https://downloadmirror.intel.com/932449/gfx_win_101.9175.exe",
-                        "sha256":  "707DFEAD0486E77B635EBA606508EAA2FC9C972F6CCA2484914DCFCFC906447D",
-                        "os":  [
-                                   "10",
-                                   "11"
-                               ],
-                        "arch":  [
-                                     "x64"
-                                 ],
-                        "class":  "DISPLAY",
-                        "nameLike":  [
-                                         "Intel(R) Arc*"
-                                     ],
-                        "signer":  "Intel Corporation",
-                        "silentArgs":  "-s"
-                    },
-                    {
-                        "name":  "Intel Graphics Driver (11th-14th Gen)",
-                        "publisher":  "Intel",
-                        "match":  [
-                                      "PCI\\VEN_8086\u0026DEV_4C8*",
-                                      "PCI\\VEN_8086\u0026DEV_4C9*",
-                                      "PCI\\VEN_8086\u0026DEV_9A4*",
-                                      "PCI\\VEN_8086\u0026DEV_9A6*",
-                                      "PCI\\VEN_8086\u0026DEV_9A7*",
-                                      "PCI\\VEN_8086\u0026DEV_9AC*",
-                                      "PCI\\VEN_8086\u0026DEV_9AD*",
-                                      "PCI\\VEN_8086\u0026DEV_46*",
-                                      "PCI\\VEN_8086\u0026DEV_A78*",
-                                      "PCI\\VEN_8086\u0026DEV_A72*",
-                                      "PCI\\VEN_8086\u0026DEV_4E*"
-                                  ],
-                        "version":  "32.0.101.7092",
-                        "date":  "2026-09-25",
-                        "sizeMB":  744.7,
-                        "type":  "installer",
-                        "url":  "https://downloadmirror.intel.com/929468/gfx_win_101.7092.exe",
-                        "sha256":  "9643CC60A899CEADF65DF2EC80C17CDB69DAEB41CDB2C9CCDE0D214A79F968F8",
-                        "os":  [
-                                   "10",
-                                   "11"
-                               ],
-                        "arch":  [
-                                     "x64"
-                                 ],
-                        "class":  "DISPLAY",
-                        "nameLike":  [
-                                         "Intel(R) UHD Graphics*",
-                                         "Intel(R) Iris(R) Xe*"
-                                     ],
-                        "signer":  "Intel Corporation",
-                        "silentArgs":  "-s"
-                    }
-                ]
+{
+  "drivers": [
+    {
+      "arch": [
+        "x64"
+      ],
+      "class": "NET",
+      "date": "2026-10-20",
+      "match": [
+        "PCI\\VEN_8086&DEV_7A70*",
+        "PCI\\VEN_8086&DEV_51F0*",
+        "PCI\\VEN_8086&DEV_51F1*",
+        "PCI\\VEN_8086&DEV_54F0*",
+        "PCI\\VEN_8086&DEV_2725*",
+        "PCI\\VEN_8086&DEV_272B*",
+        "PCI\\VEN_8086&DEV_A0F0*",
+        "PCI\\VEN_8086&DEV_43F0*",
+        "PCI\\VEN_8086&DEV_02F0*"
+      ],
+      "name": "Intel Wi-Fi Driver",
+      "os": [
+        "10",
+        "11"
+      ],
+      "publisher": "Intel",
+      "sha256": "40D2F714830B406CCC1F9C00547AD6090F164F928748E38F27A1C7C0EF5ED5EA",
+      "signer": "Intel Corporation",
+      "silentArgs": "-q -s",
+      "sizeMB": 72.3,
+      "type": "installer",
+      "url": "https://downloadmirror.intel.com/929786/WiFi-24.80.0-Driver64-Win10-Win11.exe",
+      "version": "24.80.0.2"
+    },
+    {
+      "arch": [
+        "x64"
+      ],
+      "class": "BLUETOOTH",
+      "date": "2026-10-20",
+      "match": [
+        "USB\\VID_8087&PID_0033*",
+        "USB\\VID_8087&PID_0032*",
+        "USB\\VID_8087&PID_0026*",
+        "USB\\VID_8087&PID_0036*"
+      ],
+      "name": "Intel Bluetooth Driver",
+      "os": [
+        "10",
+        "11"
+      ],
+      "publisher": "Intel",
+      "sha256": "511E01A35F8B6BDDB6463C74062467F69D08E0662059ABC515F879DFE2675724",
+      "signer": "Intel Corporation",
+      "silentArgs": "/quiet",
+      "sizeMB": 61.1,
+      "type": "installer",
+      "url": "https://downloadmirror.intel.com/930964/BT-24.80.0-64UWD-Win10-Win11.exe",
+      "version": "24.80.0.2"
+    },
+    {
+      "arch": [
+        "x64"
+      ],
+      "class": "DISPLAY",
+      "date": "2026-11-04",
+      "match": [
+        "PCI\\VEN_10DE&DEV_*"
+      ],
+      "name": "NVIDIA GeForce Game Ready Driver",
+      "nameLike": [
+        "NVIDIA GeForce RTX*",
+        "NVIDIA GeForce GTX 16*"
+      ],
+      "os": [
+        "10",
+        "11"
+      ],
+      "publisher": "NVIDIA",
+      "sha256": "9867B0C8689972C419885935BB386D999AFFFA33AFD514CADB384EE84EFCD3D3",
+      "signer": "NVIDIA Corporation",
+      "silentArgs": "-s -noreboot",
+      "sizeMB": 989.2,
+      "type": "installer",
+      "url": "https://us.download.nvidia.com/Windows/621.14/621.14-desktop-win10-win11-64bit-international-dch-whql.exe",
+      "version": "32.0.16.2114"
+    },
+    {
+      "arch": [
+        "x64"
+      ],
+      "class": "DISPLAY",
+      "date": "2026-11-04",
+      "match": [
+        "PCI\\VEN_8086&DEV_56*",
+        "PCI\\VEN_8086&DEV_E2*",
+        "PCI\\VEN_8086&DEV_7D*",
+        "PCI\\VEN_8086&DEV_64*",
+        "PCI\\VEN_8086&DEV_B0*"
+      ],
+      "name": "Intel Arc Graphics Driver",
+      "nameLike": [
+        "Intel(R) Arc*"
+      ],
+      "os": [
+        "10",
+        "11"
+      ],
+      "publisher": "Intel",
+      "sha256": "707DFEAD0486E77B635EBA606508EAA2FC9C972F6CCA2484914DCFCFC906447D",
+      "signer": "Intel Corporation",
+      "silentArgs": "-s",
+      "sizeMB": 862.6,
+      "type": "installer",
+      "url": "https://downloadmirror.intel.com/932449/gfx_win_101.9175.exe",
+      "version": "32.0.101.9175"
+    },
+    {
+      "arch": [
+        "x64"
+      ],
+      "class": "DISPLAY",
+      "date": "2026-09-25",
+      "match": [
+        "PCI\\VEN_8086&DEV_4C8*",
+        "PCI\\VEN_8086&DEV_4C9*",
+        "PCI\\VEN_8086&DEV_9A4*",
+        "PCI\\VEN_8086&DEV_9A6*",
+        "PCI\\VEN_8086&DEV_9A7*",
+        "PCI\\VEN_8086&DEV_9AC*",
+        "PCI\\VEN_8086&DEV_9AD*",
+        "PCI\\VEN_8086&DEV_46*",
+        "PCI\\VEN_8086&DEV_A78*",
+        "PCI\\VEN_8086&DEV_A72*",
+        "PCI\\VEN_8086&DEV_4E*"
+      ],
+      "name": "Intel Graphics Driver (11th-14th Gen)",
+      "nameLike": [
+        "Intel(R) UHD Graphics*",
+        "Intel(R) Iris(R) Xe*"
+      ],
+      "os": [
+        "10",
+        "11"
+      ],
+      "publisher": "Intel",
+      "sha256": "9643CC60A899CEADF65DF2EC80C17CDB69DAEB41CDB2C9CCDE0D214A79F968F8",
+      "signer": "Intel Corporation",
+      "silentArgs": "-s",
+      "sizeMB": 744.7,
+      "type": "installer",
+      "url": "https://downloadmirror.intel.com/929468/gfx_win_101.7092.exe",
+      "version": "32.0.101.7092"
+    },
+    {
+      "arch": [
+        "x64"
+      ],
+      "date": "2025-10-02",
+      "match": [
+        "PCI\\VEN_10EC&DEV_8168*"
+      ],
+      "name": "Realtek Driver Update (10.79.50.1003)",
+      "os": [
+        "10",
+        "11"
+      ],
+      "publisher": "Microsoft Update Catalog",
+      "sha256": "63F5FE117D3776EAD0782E26CDFD5E9518294D0BFE012987D96D647638160CE4",
+      "sizeMB": 0.74,
+      "type": "inf-zip",
+      "url": "https://github.com/kungzazakub-png/tiers-driver-manage/releases/download/drivers/PCI-VEN-10EC-DEV-8168-10-79-50-1003.zip",
+      "version": "10.79.50.1003"
+    }
+  ],
+  "updated": "2026-11-07",
+  "version": 1
 }
