@@ -19,5 +19,6 @@ pub mod winsys;
 pub mod ui;
 pub mod power;
 pub mod memory;
+pub mod settings;
 pub mod report;
 pub mod fetch;

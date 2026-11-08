@@ -42,6 +42,10 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\tiers-driver-manage.exe"; Tas
 [Run]
 Filename: "{app}\tiers-driver-manage.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent runascurrentuser
 
+[UninstallRun]
+; removes the "start with Windows" task if the user turned it on (harmless when it does not exist)
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""TierS Driver Manage"" /F"; Flags: runhidden; RunOnceId: "RemoveAutostartTask"
+
 [InstallDelete]
 ; the 1.x PowerShell version's files
 Type: files; Name: "{app}\TierS Driver Manage.exe"

@@ -4,11 +4,14 @@ use tdm::{catalog, ui, winsys};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tao::event::{Event, StartCause, WindowEvent};
-use tao::event_loop::{ControlFlow, EventLoopBuilder};
-use tao::window::{Icon, WindowBuilder};
-use wry::{WebContext, WebViewBuilder};
+use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
+use tao::window::{Icon, Window, WindowBuilder};
+use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+use tray_icon::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use wry::{WebContext, WebView, WebViewBuilder};
 
-enum UserEvent { Wake, Ipc(String), Close }
+enum UserEvent { Wake, Ipc(String), Close, Show, Tray(String) }
+type Proxy = Arc<Mutex<EventLoopProxy<UserEvent>>>;
 
 fn diag() {
     let host = winsys::host_info();
@@ -42,6 +45,31 @@ fn single_instance(wait: bool) -> Option<windows::Win32::Foundation::HANDLE> {
     None
 }
 
+/// A second launch asks the running copy (maybe sitting in the tray) to show its window. false = nobody answered.
+fn ask_running_copy_to_show() -> bool {
+    use windows::core::w;
+    use windows::Win32::System::Threading::{OpenEventW, SetEvent, EVENT_MODIFY_STATE};
+    unsafe {
+        let Ok(h) = OpenEventW(EVENT_MODIFY_STATE, false, w!("Global\\TierS.DriverManage.Show")) else { return false };
+        let ok = SetEvent(h).is_ok();
+        let _ = windows::Win32::Foundation::CloseHandle(h);
+        ok
+    }
+}
+
+/// The running copy waits for that event and shows its window when it fires.
+fn listen_for_show_requests(proxy: Proxy) {
+    use windows::core::w;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject, INFINITE};
+    let Ok(h) = (unsafe { CreateEventW(None, false, false, w!("Global\\TierS.DriverManage.Show")) }) else { return };
+    let raw = h.0 as isize; // HANDLE is not Send; the number is
+    std::thread::spawn(move || loop {
+        if unsafe { WaitForSingleObject(HANDLE(raw as *mut _), INFINITE) }.0 != 0 { break; }
+        let _ = proxy.lock().unwrap().send_event(UserEvent::Show);
+    });
+}
+
 fn note(msg: &str) {
     use windows::core::{w, HSTRING};
     use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
@@ -72,41 +100,93 @@ fn power_test() {
     println!("backups: {}", backup::list(&env.root).len());
 }
 
-fn run_window(cfg: Config, demo: Option<String>, dir: std::path::PathBuf) -> Result<(), String> {
+/// (Re)creates the WebView2 page. While the window sits in the tray the page is destroyed so it holds no memory.
+fn make_webview(window: &Window, web_ctx: &mut WebContext, proxy: &Proxy, html: &str) -> Result<WebView, String> {
+    let p = proxy.clone();
+    WebViewBuilder::new_with_web_context(web_ctx).with_html(html).with_background_color((244, 246, 249, 255)).with_devtools(false)
+        .with_ipc_handler(move |req| { let _ = p.lock().unwrap().send_event(UserEvent::Ipc(req.body().to_string())); })
+        .build(window).map_err(|e| e.to_string())
+}
+
+fn run_window(cfg: Config, demo: Option<String>, dir: std::path::PathBuf, start_in_tray: bool) -> Result<(), String> {
     use base64::Engine;
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
-    let proxy = Arc::new(Mutex::new(event_loop.create_proxy()));
-    let icon = image::load_from_memory(include_bytes!("../assets/tiers-logo.png")).ok().and_then(|i| { let r = i.to_rgba8(); let (w, h) = (r.width(), r.height()); Icon::from_rgba(r.into_raw(), w, h).ok() });
-    let window = WindowBuilder::new().with_title("TierS Driver Manage").with_inner_size(tao::dpi::LogicalSize::new(1100.0, 720.0)).with_min_inner_size(tao::dpi::LogicalSize::new(900.0, 560.0)).with_window_icon(icon).build(&event_loop).map_err(|e| e.to_string())?;
+    let proxy: Proxy = Arc::new(Mutex::new(event_loop.create_proxy()));
+    let logo_png = include_bytes!("../assets/tiers-logo.png");
+    let rgba = image::load_from_memory(logo_png).ok().map(|i| i.to_rgba8());
+    let icon = rgba.clone().and_then(|r| { let (w, h) = (r.width(), r.height()); Icon::from_rgba(r.into_raw(), w, h).ok() });
+
+    // the tray icon; if Windows refuses it the program simply behaves as before (closing the window quits)
+    let open_item = MenuItem::with_id("open", "Open TierS Driver Manage", true, None);
+    let auto_item = CheckMenuItem::with_id("auto", "Automatic memory cleaning", true, false, None);
+    let clean_item = MenuItem::with_id("clean", "Clean standby list now", true, None);
+    let quit_item = MenuItem::with_id("quit", "Quit", true, None);
+    let menu = Menu::new();
+    let _ = menu.append_items(&[&open_item, &PredefinedMenuItem::separator(), &auto_item, &clean_item, &PredefinedMenuItem::separator(), &quit_item]);
+    let tray_icon = rgba.and_then(|r| { let (w, h) = (r.width(), r.height()); tray_icon::Icon::from_rgba(r.into_raw(), w, h).ok() });
+    let mut builder = TrayIconBuilder::new().with_menu(Box::new(menu)).with_menu_on_left_click(false).with_tooltip("TierS Driver Manage");
+    if let Some(i) = tray_icon { builder = builder.with_icon(i); }
+    let tray = if demo.is_some() { None } else { builder.build().ok() };
+    let (pm, pt) = (proxy.clone(), proxy.clone());
+    MenuEvent::set_event_handler(Some(move |e: MenuEvent| { let _ = pm.lock().unwrap().send_event(UserEvent::Tray(e.id.0.clone())); }));
+    TrayIconEvent::set_event_handler(Some(move |e: TrayIconEvent| {
+        if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } | TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } = e { let _ = pt.lock().unwrap().send_event(UserEvent::Show); }
+    }));
+    let hidden_start = start_in_tray && tray.is_some() && demo.is_none();
+
+    let window = WindowBuilder::new().with_title("TierS Driver Manage").with_inner_size(tao::dpi::LogicalSize::new(1100.0, 720.0)).with_min_inner_size(tao::dpi::LogicalSize::new(900.0, 560.0)).with_window_icon(icon).with_visible(!hidden_start).build(&event_loop).map_err(|e| e.to_string())?;
     // WebView2 keeps its profile here: the program folder is not writable for normal users
     let mut web_ctx = WebContext::new(Some(dir.join("webview")));
-    let logo = format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(include_bytes!("../assets/tiers-logo.png")));
+    let logo = format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(logo_png));
     let html = ui::PAGE_HTML.replace("__LOGO__", &logo);
-    let p2 = proxy.clone();
-    let webview = WebViewBuilder::new_with_web_context(&mut web_ctx).with_html(html).with_background_color((244, 246, 249, 255)).with_devtools(false)
-        .with_ipc_handler(move |req| { let _ = p2.lock().unwrap().send_event(UserEvent::Ipc(req.body().to_string())); })
-        .build(&window).map_err(|e| e.to_string())?;
+    let mut webview: Option<WebView> = if hidden_start { None } else { Some(make_webview(&window, &mut web_ctx, &proxy, &html)?) };
+    if demo.is_none() { listen_for_show_requests(proxy.clone()); }
 
     let (pw, pc) = (proxy.clone(), proxy.clone());
     let ctx = ui::Ctx { wake: Arc::new(move || { let _ = pw.lock().unwrap().send_event(UserEvent::Wake); }), close: Arc::new(move || { let _ = pc.lock().unwrap().send_event(UserEvent::Close); }) };
     let mut app = ui::App::new(cfg);
     match &demo { Some(d) => { app.demo(d); if d == "power" { app.handle(r#"{"cmd":"tab","tab":"power"}"#, &ctx); } } None => app.check_for_update(&ctx) }
     let mut last: Option<String> = None;
+    let mut shown_auto = false;
     event_loop.run(move |event, _, flow| {
-        let _keep = &web_ctx;
+        let _keep = (&tray, &open_item);
         *flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(250));
         let mut tick = false;
         match event {
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => { *flow = ControlFlow::Exit; return; }
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+                if tray.is_some() && app.tray_on_close() { window.set_visible(false); webview = None; last = None; }
+                else { *flow = ControlFlow::Exit; return; }
+            }
             Event::UserEvent(UserEvent::Close) => { *flow = ControlFlow::Exit; return; }
+            Event::UserEvent(UserEvent::Show) => {
+                window.set_visible(true); window.set_minimized(false); window.set_focus();
+                if webview.is_none() { match make_webview(&window, &mut web_ctx, &proxy, &html) { Ok(w) => webview = Some(w), Err(e) => log_error(&format!("Could not open the window: {e}")) } }
+                last = None; tick = true;
+            }
+            Event::UserEvent(UserEvent::Tray(id)) => {
+                match id.as_str() {
+                    "open" => { let _ = proxy.lock().unwrap().send_event(UserEvent::Show); }
+                    "auto" => { let v = if app.mem_auto() { 0 } else { 1 }; app.handle(&format!(r#"{{"cmd":"mem_auto","v":{v}}}"#), &ctx); }
+                    "clean" => app.handle(r#"{"cmd":"mem_purge"}"#, &ctx),
+                    "quit" => { *flow = ControlFlow::Exit; return; }
+                    _ => {}
+                }
+                tick = true;
+            }
             Event::UserEvent(UserEvent::Ipc(m)) => { if m.contains("\"ready\"") { last = None; } else { app.handle(&m, &ctx); } tick = true; }
             Event::UserEvent(UserEvent::Wake) | Event::NewEvents(StartCause::ResumeTimeReached { .. }) => tick = true,
             _ => {}
         }
         if tick {
             app.poll(&ctx);
-            let v = app.view().to_string();
-            if last.as_deref() != Some(v.as_str()) { let _ = webview.evaluate_script(&format!("window.setState({v})")); last = Some(v); }
+            if let Some(t) = &tray {
+                let on = app.mem_auto();
+                if on != shown_auto { shown_auto = on; auto_item.set_checked(on); let _ = t.set_tooltip(Some(if on { "TierS Driver Manage - memory cleaning on" } else { "TierS Driver Manage" })); }
+            }
+            if let Some(w) = &webview {
+                let v = app.view().to_string();
+                if last.as_deref() != Some(v.as_str()) { let _ = w.evaluate_script(&format!("window.setState({v})")); last = Some(v); }
+            }
         }
     });
 }
@@ -134,8 +214,18 @@ fn main() {
     }
     if args.iter().any(|a| a == "--memory-test") { let r = format!("{:?}", tdm::memory::Mem::stats(&tdm::memory::RealMem)); println!("{r}"); note(&r); return; }
     let wait = args.iter().any(|a| a == "--wait-for-previous");
+    let tray_start = args.iter().any(|a| a == "--tray");
     let demo = args.iter().position(|a| a == "--demo").and_then(|i| args.get(i + 1)).cloned();
-    let _guard = if demo.is_some() { None } else { match single_instance(wait) { Some(h) => Some(h), None => { note("TierS Driver Manage is already running (look in the taskbar or Task Manager). Close the other copy first."); return } } };
+    let _guard = if demo.is_some() { None } else {
+        match single_instance(wait) {
+            Some(h) => Some(h),
+            None => {
+                // already running (maybe in the tray): bring its window up. Started by Windows at sign-in there is nothing to show.
+                if !tray_start && !wait && !ask_running_copy_to_show() { note("TierS Driver Manage is already running (look in the taskbar, the tray or Task Manager). Close the other copy first."); }
+                return
+            }
+        }
+    };
 
     let dir = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir).join("TierS Driver Manage");
     let _ = std::fs::create_dir_all(&dir);
@@ -143,5 +233,5 @@ fn main() {
     let _ = std::fs::write(&catalog_path, ui::SHIPPED_CATALOG);
     if let Ok(exe) = std::env::current_exe() { tdm::selfupdate::cleanup_old(&exe); }
     let cfg = Config { catalog_path, online_catalog_path: dir.join("driverdb.online.json"), repo: ui::REPO.into(), public_key: ui::PUBLIC_KEY.into(), block_catalog: false, old_years: 3.0 };
-    if let Err(e) = run_window(cfg, demo, dir) { log_error(&format!("Could not open the window: {e}\n\nThe program needs the Microsoft Edge WebView2 Runtime (included with Windows 11 and current Windows 10)." )); }
+    if let Err(e) = run_window(cfg, demo, dir, tray_start) { log_error(&format!("Could not open the window: {e}\n\nThe program needs the Microsoft Edge WebView2 Runtime (included with Windows 11 and current Windows 10)." )); }
 }

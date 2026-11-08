@@ -8,6 +8,7 @@ use crate::sys::RealSys;
 use crate::update::{self, Manifest};
 use crate::power::{self, backup as pbackup, cfg as pcfg, hw::{self as phw, Hardware, Tier}, overlay::RealOverlay, profiles::{self, Opts}, Comparison, PreviewRow, Report};
 use crate::memory::{self, Monitor, RealMem};
+use crate::settings::{self, Settings};
 use crate::{selfupdate, winsys, wu};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -29,7 +30,7 @@ pub struct Ctx { pub wake: Arc<dyn Fn() + Send + Sync>, pub close: Arc<dyn Fn() 
 impl Ctx { fn repaint(&self) { (self.wake)() } }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Tab { Updates, Installed, Backups, Power, Memory, Log }
+pub enum Tab { Updates, Installed, Backups, Power, Memory, Settings, Log }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mode { Review, Run, Results }
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -83,6 +84,11 @@ pub struct App {
     updating: bool,
     power: PowerUi,
     mem: Monitor,
+    settings: Settings,
+    settings_path: std::path::PathBuf,
+    /// None = not read yet
+    autostart: Option<bool>,
+    settings_err: String,
     report_rx: Option<Receiver<Result<usize, String>>>,
     reported: bool,
 }
@@ -133,14 +139,49 @@ fn code_name(c: Code) -> &'static str {
 
 impl App {
     pub fn new(cfg: Config) -> App {
+        let settings_path = cfg.catalog_path.parent().map(|p| p.join("settings.json")).unwrap_or_else(|| "settings.json".into());
+        let settings = Settings::load(&settings_path);
+        let mut mem = Monitor::new();
+        mem.on = settings.mem_auto; mem.poll_ms = settings.mem_poll_ms; mem.rule = memory::Rule { standby_mb: settings.mem_standby_mb, free_mb: settings.mem_free_mb };
         App {
+            mem, settings, settings_path, autostart: None, settings_err: String::new(),
             http: Arc::new(Real::new()), cfg: Arc::new(cfg), host: winsys::host_info(), machine: winsys::machine_summary(),
             tab: Tab::Updates, mode: Mode::Review, rows: vec![], info_rows: vec![], results: vec![], inventory: vec![], missing_count: 0,
             offers: HashMap::new(), declined: HashSet::new(), running: Running::None, scanned: false, status: "Ready to scan".into(), banner: None,
             restore_point: true, restore_done: false, log: vec![], need_reboot: false, pass: 0, auto: false, backups: vec![], selected_backup: None,
             confirm_rollback: None, update: None, update_rx: None, apply_rx: None, updating: false,
-            report_rx: None, reported: false, mem: Monitor::new(),
+            report_rx: None, reported: false,
             power: PowerUi { hw: None, recommended: Tier::Low, why: vec![], selected: Tier::Low, opts: Opts { restore_point: true, ..Default::default() }, preview: vec![], report: None, cmp: None, status: "Ready".into(), busy: false, confirm_reset: false, loaded: false, rx: None },
+        }
+    }
+
+    /// Closing the window hides it to the tray instead of quitting.
+    pub fn tray_on_close(&self) -> bool { self.settings.tray_on_close }
+    pub fn mem_auto(&self) -> bool { self.mem.on }
+
+    fn save_settings(&mut self) {
+        if let Err(e) = self.settings.save(&self.settings_path) { self.say(format!("[FAILED] Could not save the settings: {e}")); }
+    }
+    /// Memory choices are remembered between runs.
+    fn save_mem_settings(&mut self) {
+        let (m, s) = (&self.mem, &mut self.settings);
+        (s.mem_auto, s.mem_poll_ms, s.mem_standby_mb, s.mem_free_mb) = (m.on, m.poll_ms, m.rule.standby_mb, m.rule.free_mb);
+        self.save_settings();
+    }
+
+    fn set_autostart(&mut self, on: bool) {
+        let exe = std::env::current_exe().unwrap_or_default();
+        let user = format!("{}\\{}", std::env::var("USERDOMAIN").unwrap_or_default(), std::env::var("USERNAME").unwrap_or_default());
+        let work = self.settings_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(std::env::temp_dir);
+        match settings::set_autostart(&RealSys, on, &exe, &user, &work) {
+            Ok(()) => {
+                self.settings_err.clear();
+                self.autostart = Some(on);
+                // a program that starts in the tray must stay in the tray when its window is closed
+                if on { self.settings.tray_on_close = true; self.save_settings(); }
+                self.say(if on { "Settings: the program will start with Windows, in the tray" } else { "Settings: start with Windows turned off" });
+            }
+            Err(e) => { self.settings_err = e.clone(); self.say(format!("[FAILED] Settings: {e}")); self.autostart = Some(settings::autostart_enabled(&RealSys)); }
         }
     }
 
@@ -491,7 +532,8 @@ impl App {
             "update" => self.start_update(ctx),
             "report" => self.send_report(ctx),
             "tab" => {
-                self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("power") => Tab::Power, Some("memory") => Tab::Memory, Some("log") => Tab::Log, _ => Tab::Updates };
+                self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("power") => Tab::Power, Some("memory") => Tab::Memory, Some("settings") => Tab::Settings, Some("log") => Tab::Log, _ => Tab::Updates };
+                if self.tab == Tab::Settings { self.autostart = Some(settings::autostart_enabled(&RealSys)); }
                 if self.tab == Tab::Backups { self.refresh_backups(); }
                 if self.tab == Tab::Power && !self.power.loaded { self.power_load(ctx); }
             }
@@ -504,10 +546,12 @@ impl App {
             "rollbackYes" => { if let Some(i) = self.confirm_rollback.take() { self.do_rollback(i); } }
             "rollbackNo" => self.confirm_rollback = None,
             "mem_purge" => match self.mem.purge_now(&RealMem) { Ok(line) => self.say(line), Err(e) => { self.mem.err = e.clone(); self.say(format!("[FAILED] Memory: {e}")); } },
-            "mem_auto" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.mem.on = on; if on { self.mem.err.clear(); self.say("Memory: automatic cleaning started"); } else { self.say("Memory: automatic cleaning stopped"); } },
-            "mem_poll" => if let Some(x) = v["v"].as_u64() { self.mem.poll_ms = memory::snap(x, memory::POLL_MS); },
-            "mem_standby" => if let Some(x) = v["v"].as_u64() { self.mem.rule.standby_mb = memory::snap(x, memory::STANDBY_MB); },
-            "mem_free" => if let Some(x) = v["v"].as_u64() { self.mem.rule.free_mb = memory::snap(x, memory::FREE_MB); },
+            "mem_auto" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.mem.on = on; if on { self.mem.err.clear(); self.say("Memory: automatic cleaning started"); } else { self.say("Memory: automatic cleaning stopped"); } self.save_mem_settings(); },
+            "mem_poll" => if let Some(x) = v["v"].as_u64() { self.mem.poll_ms = memory::snap(x, memory::POLL_MS); self.save_mem_settings(); },
+            "mem_standby" => if let Some(x) = v["v"].as_u64() { self.mem.rule.standby_mb = memory::snap(x, memory::STANDBY_MB); self.save_mem_settings(); },
+            "mem_free" => if let Some(x) = v["v"].as_u64() { self.mem.rule.free_mb = memory::snap(x, memory::FREE_MB); self.save_mem_settings(); },
+            "set_tray" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.settings.tray_on_close = on; self.save_settings(); },
+            "set_autostart" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.set_autostart(on); },
             "power_tier" => if !self.power.busy { if let Some(t) = v["tier"].as_str().and_then(Tier::from_key) { self.power.selected = t; self.power_refresh_preview(ctx); } },
             "power_opt" => if !self.power.busy { if let Some(on) = v["on"].as_bool() {
                 match v["name"].as_str() { Some("usb") => self.power.opts.usb_off = on, Some("pcie") => self.power.opts.pcie_off = on, Some("ultimate") => self.power.opts.ultimate = on, Some("restore") => self.power.opts.restore_point = on, _ => {} }
@@ -579,7 +623,7 @@ impl App {
         json!({
             "version": VERSION, "machine": self.machine, "busy": busy, "status": self.status, "statusTone": st_tone, "statusIcon": st_icon, "progress": progress,
             "update": self.update.as_ref().map(|m| json!({ "version": m.version, "notes": m.notes })),
-            "tab": match self.tab { Tab::Updates => "updates", Tab::Installed => "installed", Tab::Backups => "backups", Tab::Power => "power", Tab::Memory => "memory", Tab::Log => "log" },
+            "tab": match self.tab { Tab::Updates => "updates", Tab::Installed => "installed", Tab::Backups => "backups", Tab::Power => "power", Tab::Memory => "memory", Tab::Settings => "settings", Tab::Log => "log" },
             "mode": match self.mode { Mode::Review => "review", Mode::Run => "run", Mode::Results => "results" },
             "scanned": self.scanned,
             "banner": self.banner.as_ref().map(|b| json!({ "kind": match b.kind { Kind::Info => "info", Kind::Good => "good", Kind::Warn => "warn", Kind::Bad => "bad" }, "text": b.text,
@@ -589,6 +633,7 @@ impl App {
             "selN": sel_n, "selSize": size_text(Some(sel_mb)), "allTicked": !self.rows.is_empty() && self.rows.iter().all(|r| r.ticked),
             "report": { "available": !REPORT_URL.is_empty() && self.mode == Mode::Review, "count": crate::report::build(&self.info_rows).len(), "done": self.reported, "sending": self.report_rx.is_some() },
             "restorePoint": self.restore_point, "log": self.log.join("\n"), "power": self.power_view(), "memory": self.memory_view(),
+            "settings": json!({ "tray": self.settings.tray_on_close, "autostart": self.autostart, "err": self.settings_err }),
             "confirm": self.confirm_rollback.and_then(|i| self.backups.get(i)).map(|b| json!({ "device": b.entry.device, "version": b.entry.old_version })),
         })
     }

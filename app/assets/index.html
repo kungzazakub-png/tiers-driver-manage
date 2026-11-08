@@ -286,7 +286,7 @@ function memoryPanel() {
   const right = `<section class="mcard"><div class="mhead"><h3>Automatic cleaning</h3>
       <span class="chip tone-${M.on ? "good" : "muted"}">${ico(M.on ? "check" : "ring", "tone-" + (M.on ? "good" : "muted"))}${M.on ? "On · cleaned " + M.purges + " time(s)" : "Off"}</span>
       <button class="btn ${M.on ? "" : "primary"}" data-mem="auto" data-v="${M.on ? 0 : 1}">${M.on ? "Stop" : "Start"}</button></div>
-      <p class="mhelp" style="margin-top:0">When it is on, the program watches memory and cleans the standby list for you, but only when <b>both</b> conditions below are true at the same moment. Drag a slider to change a value; the new value is used right away. It stops when you close the program.</p>
+      <p class="mhelp" style="margin-top:0">When it is on, the program watches memory and cleans the standby list for you, but only when <b>both</b> conditions below are true at the same moment. Drag a slider to change a value; the new value is used right away. Your choices are remembered, and it keeps working while the program is in the tray.</p>
       ${sl("poll", "Check every", "How often the program looks at memory", M.pollR, M.poll)}
       ${sl("standby", "Condition 1: standby list is at least", "A small list is not worth cleaning", M.standbyR, M.standbyMb)}
       ${sl("free", "Condition 2: free memory is at most", "Plenty of free memory means no need to clean", M.freeR, M.freeMb)}
@@ -301,7 +301,23 @@ function memoryFooter() {
   const tone = M.err ? ["cross", "bad"] : ["ring", "muted"];
   return `<div class="foot"><div class="grow"></div><span class="chip tone-${tone[1]}">${ico(tone[0], "tone-" + tone[1])}${esc(status)}</span><button class="btn primary" data-act="mem_purge">Clean standby list now</button></div>`;
 }
+function settingsPanel() {
+  const T = S.settings;
+  return `<div class="scroll"><div class="pw">
+    <section><h3>Background</h3><div class="opts">
+      <label><input class="cb" type="checkbox" data-set="tray" ${T.tray ? "checked" : ""}><span>Keep running in the system tray when I close the window</span></label>
+      <label><input class="cb" type="checkbox" data-set="autostart" ${T.autostart ? "checked" : ""} ${T.autostart === null ? "disabled" : ""}><span>Start with Windows (opens in the tray, no window)</span></label></div>
+      ${T.err ? `<p class="note-warn" style="margin-top:12px">${esc(T.err)}</p>` : ""}
+    </section>
+    <section><h3>How it works</h3>
+      <p class="mhelp" style="margin-top:0">In the tray the window is closed and the program uses very little memory. Only the tray icon and, if you turned it on, automatic memory cleaning keep working. Double-click or left-click the tray icon to open the window. Right-click it for Open, Automatic memory cleaning, Clean standby list now and Quit.</p>
+      <p class="mhelp">Start with Windows adds a Windows scheduled task that runs at sign-in with administrator rights, so Windows does not ask for permission every time. Turning it off removes the task. It also turns on <b>Keep running in the system tray</b>, so closing the window does not quit the program.</p>
+      <p class="mhelp">Automatic memory cleaning and its limits are remembered, so it starts again by itself the next time the program runs.</p>
+    </section></div></div>`;
+}
+
 function body() {
+  if (S.tab === "settings") return settingsPanel();
   if (S.tab === "memory") return memoryPanel();
   if (S.tab === "power") return powerPanel();
   if (S.tab === 'installed') return `<div class="scroll">${installedTable()}</div>`;
@@ -339,6 +355,7 @@ function powerFooter() {
 }
 
 function footer() {
+  if (S.tab === "settings") return `<div class="foot"><div class="grow"></div><span>Changes are saved at once</span></div>`;
   if (S.tab === "memory") return memoryFooter();
   if (S.tab === "power") return powerFooter();
   const busy = S.busy;
@@ -355,9 +372,9 @@ function footer() {
 function render() {
   if (!S) return;
   const sc = document.querySelector('.scroll'); const top = sc ? sc.scrollTop : 0;
-  const noScan = S.tab === 'memory' || S.tab === 'power'; // these tabs have nothing to do with scanning drivers
+  const noScan = S.tab === 'memory' || S.tab === 'power' || S.tab === 'settings'; // these tabs have nothing to do with scanning drivers
   const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.rng : null;
-  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['power','Power plan'],['memory','Memory'],['log','Log']];
+  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['power','Power plan'],['memory','Memory'],['settings','Settings'],['log','Log']];
   const prog = S.busy ? (S.progress == null ? '<div class="bar indet"><i></i></div>' : `<div class="bar"><i style="width:${Math.round(S.progress*100)}%"></i></div>`) : '<div class="bar"></div>';
   document.getElementById('app').style.display = 'contents';
   document.getElementById('app').innerHTML = `
@@ -395,6 +412,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.rng) { send('mem_' + t.dataset.rng, {v: +t.value}); return; }
+  if (t.dataset.set) { send('set_' + t.dataset.set, {v: t.checked ? 1 : 0}); return; }
   if (t.dataset.tick !== undefined) send('tick', {i: +t.dataset.tick, on: t.checked});
   else if (t.dataset.all !== undefined) send('tickAll', {on: t.checked});
   else if (t.dataset.rp !== undefined) send('restorePoint', {on: t.checked});
@@ -403,7 +421,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'F5') { e.preventDefault(); if (S && !S.busy) send('scan'); }
-  if (e.ctrlKey && '123456'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','power','memory','log'][+e.key - 1]});
+  if (e.ctrlKey && '1234567'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','power','memory','settings','log'][+e.key - 1]});
   if (e.key === 'Escape' && S && S.confirm) send('rollbackNo');
 });
 document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, {passive:false});
