@@ -8,6 +8,7 @@ use crate::sys::RealSys;
 use crate::update::{self, Manifest};
 use crate::power::{self, backup as pbackup, cfg as pcfg, hw::{self as phw, Hardware, Tier}, overlay::RealOverlay, profiles::{self, Opts}, Comparison, PreviewRow, Report};
 use crate::memory::{self, Monitor, RealMem};
+use crate::boost::{self, RegExe};
 use crate::settings::{self, Settings};
 use crate::{selfupdate, winsys, wu};
 use serde_json::{json, Value};
@@ -30,7 +31,10 @@ pub struct Ctx { pub wake: Arc<dyn Fn() + Send + Sync>, pub close: Arc<dyn Fn() 
 impl Ctx { fn repaint(&self) { (self.wake)() } }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Tab { Updates, Installed, Backups, Power, Memory, Settings, Log }
+pub enum Tab { Updates, Installed, Backups, Power, Boost, Memory, Settings, Log }
+
+/// Boost tab state. `on` is read from the registry when the tab opens and after each change (not on every redraw).
+struct BoostUi { on: Vec<bool>, gpus: Vec<String>, loaded: bool, err: String, store: boost::Store, path: std::path::PathBuf }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mode { Review, Run, Results }
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -89,6 +93,7 @@ pub struct App {
     /// None = not read yet
     autostart: Option<bool>,
     settings_err: String,
+    boost: BoostUi,
     report_rx: Option<Receiver<Result<usize, String>>>,
     reported: bool,
 }
@@ -143,7 +148,9 @@ impl App {
         let settings = Settings::load(&settings_path);
         let mut mem = Monitor::new();
         mem.on = settings.mem_auto; mem.poll_ms = settings.mem_poll_ms; mem.rule = memory::Rule { standby_mb: settings.mem_standby_mb, free_mb: settings.mem_free_mb };
+        let boost_path = settings_path.with_file_name("boost.json");
         App {
+            boost: BoostUi { on: vec![], gpus: vec![], loaded: false, err: String::new(), store: boost::load(&boost_path), path: boost_path },
             mem, settings, settings_path, autostart: None, settings_err: String::new(),
             http: Arc::new(Real::new()), cfg: Arc::new(cfg), host: winsys::host_info(), machine: winsys::machine_summary(),
             tab: Tab::Updates, mode: Mode::Review, rows: vec![], info_rows: vec![], results: vec![], inventory: vec![], missing_count: 0,
@@ -153,6 +160,32 @@ impl App {
             report_rx: None, reported: false,
             power: PowerUi { hw: None, recommended: Tier::Low, why: vec![], selected: Tier::Low, opts: Opts { restore_point: true, ..Default::default() }, preview: vec![], report: None, cmp: None, status: "Ready".into(), busy: false, confirm_reset: false, loaded: false, rx: None },
         }
+    }
+
+    fn boost_refresh(&mut self) {
+        self.boost.on = boost::TWEAKS.iter().map(|t| boost::is_on(&RegExe, t)).collect();
+        if !self.boost.loaded { self.boost.gpus = boost::gpu_names(); self.boost.loaded = true; }
+    }
+
+    fn boost_apply(&mut self, id: &str, on: bool) {
+        let Some(t) = boost::tweak(id) else { return };
+        match boost::set(&RegExe, &mut self.boost.store, t, on) {
+            Ok(()) => {
+                if id == "mouse" { boost::refresh_mouse(&RegExe); }
+                self.boost.err = boost::save(&self.boost.path, &self.boost.store).err().map(|e| format!("Could not save the undo information: {e}")).unwrap_or_default();
+                self.say(format!("Boost: {} {}", t.title, if on { "on" } else { "off" }));
+            }
+            Err(e) => { self.say(format!("[FAILED] Boost: {e}")); self.boost.err = e; }
+        }
+    }
+
+    fn boost_view(&self) -> Value {
+        let b = &self.boost;
+        let (tip_name, tip) = boost::latency_tip(&b.gpus);
+        let items: Vec<Value> = boost::TWEAKS.iter().enumerate().map(|(i, t)| json!({ "id": t.id, "title": t.title, "why": t.why, "effect": t.effect, "restart": t.restart, "rec": t.recommended,
+            "on": b.on.get(i).copied().unwrap_or(false) })).collect();
+        let rec_done = boost::TWEAKS.iter().enumerate().filter(|(_, t)| t.recommended).all(|(i, _)| b.on.get(i).copied().unwrap_or(false));
+        json!({ "items": items, "err": b.err, "gpus": b.gpus.join(", "), "tipName": tip_name, "tip": tip, "recDone": rec_done, "canUndo": !b.store.is_empty() })
     }
 
     /// Closing the window hides it to the tray instead of quitting.
@@ -532,7 +565,8 @@ impl App {
             "update" => self.start_update(ctx),
             "report" => self.send_report(ctx),
             "tab" => {
-                self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("power") => Tab::Power, Some("memory") => Tab::Memory, Some("settings") => Tab::Settings, Some("log") => Tab::Log, _ => Tab::Updates };
+                self.tab = match v["tab"].as_str() { Some("installed") => Tab::Installed, Some("backups") => Tab::Backups, Some("power") => Tab::Power, Some("boost") => Tab::Boost, Some("memory") => Tab::Memory, Some("settings") => Tab::Settings, Some("log") => Tab::Log, _ => Tab::Updates };
+                if self.tab == Tab::Boost { self.boost_refresh(); }
                 if self.tab == Tab::Settings { self.autostart = Some(settings::autostart_enabled(&RealSys)); }
                 if self.tab == Tab::Backups { self.refresh_backups(); }
                 if self.tab == Tab::Power && !self.power.loaded { self.power_load(ctx); }
@@ -550,6 +584,9 @@ impl App {
             "mem_poll" => if let Some(x) = v["v"].as_u64() { self.mem.poll_ms = memory::snap(x, memory::POLL_MS); self.save_mem_settings(); },
             "mem_standby" => if let Some(x) = v["v"].as_u64() { self.mem.rule.standby_mb = memory::snap(x, memory::STANDBY_MB); self.save_mem_settings(); },
             "mem_free" => if let Some(x) = v["v"].as_u64() { self.mem.rule.free_mb = memory::snap(x, memory::FREE_MB); self.save_mem_settings(); },
+            "boost_set" => if let (Some(id), Some(on)) = (v["id"].as_str(), v["v"].as_u64().map(|x| x == 1)) { self.boost_apply(id, on); self.boost_refresh(); },
+            "boost_rec" => { for t in boost::TWEAKS.iter().filter(|t| t.recommended) { self.boost_apply(t.id, true); } self.boost_refresh(); }
+            "boost_undo" => { let ids: Vec<String> = self.boost.store.keys().cloned().collect(); for id in ids { self.boost_apply(&id, false); } self.boost_refresh(); }
             "set_tray" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.settings.tray_on_close = on; self.save_settings(); },
             "set_autostart" => if let Some(on) = v["v"].as_u64().map(|x| x == 1) { self.set_autostart(on); },
             "power_tier" => if !self.power.busy { if let Some(t) = v["tier"].as_str().and_then(Tier::from_key) { self.power.selected = t; self.power_refresh_preview(ctx); } },
@@ -623,7 +660,7 @@ impl App {
         json!({
             "version": VERSION, "machine": self.machine, "busy": busy, "status": self.status, "statusTone": st_tone, "statusIcon": st_icon, "progress": progress,
             "update": self.update.as_ref().map(|m| json!({ "version": m.version, "notes": m.notes })),
-            "tab": match self.tab { Tab::Updates => "updates", Tab::Installed => "installed", Tab::Backups => "backups", Tab::Power => "power", Tab::Memory => "memory", Tab::Settings => "settings", Tab::Log => "log" },
+            "tab": match self.tab { Tab::Updates => "updates", Tab::Installed => "installed", Tab::Backups => "backups", Tab::Power => "power", Tab::Boost => "boost", Tab::Memory => "memory", Tab::Settings => "settings", Tab::Log => "log" },
             "mode": match self.mode { Mode::Review => "review", Mode::Run => "run", Mode::Results => "results" },
             "scanned": self.scanned,
             "banner": self.banner.as_ref().map(|b| json!({ "kind": match b.kind { Kind::Info => "info", Kind::Good => "good", Kind::Warn => "warn", Kind::Bad => "bad" }, "text": b.text,
@@ -632,7 +669,7 @@ impl App {
             "pills": { "drivers": self.inventory.len(), "upIcon": up_icon, "upTone": up_tone, "upText": up_text, "missing": self.missing_count },
             "selN": sel_n, "selSize": size_text(Some(sel_mb)), "allTicked": !self.rows.is_empty() && self.rows.iter().all(|r| r.ticked),
             "report": { "available": !REPORT_URL.is_empty() && self.mode == Mode::Review, "count": crate::report::build(&self.info_rows).len(), "done": self.reported, "sending": self.report_rx.is_some() },
-            "restorePoint": self.restore_point, "log": self.log.join("\n"), "power": self.power_view(), "memory": self.memory_view(),
+            "restorePoint": self.restore_point, "log": self.log.join("\n"), "power": self.power_view(), "boost": self.boost_view(), "memory": self.memory_view(),
             "settings": json!({ "tray": self.settings.tray_on_close, "autostart": self.autostart, "err": self.settings_err }),
             "confirm": self.confirm_rollback.and_then(|i| self.backups.get(i)).map(|b| json!({ "device": b.entry.device, "version": b.entry.old_version })),
         })

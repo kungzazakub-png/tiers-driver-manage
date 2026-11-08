@@ -168,6 +168,13 @@ svg { display:block; flex:none; }
 .mhead { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
 .mhead h3 { margin:0; flex:1; }
 .mhelp { margin:16px 0 0; color:var(--muted); }
+.brow { display:grid; grid-template-columns:28px minmax(0,1fr); gap:4px 8px; padding:12px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; cursor:pointer; }
+.brow:hover { background:var(--hover); }
+.brow.on { border-color:var(--accent); background:var(--accent-soft); }
+.brow .cb { margin:3px 0 0; }
+.brow .n { font-weight:600; display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+.brow .w { color:var(--muted); font-size:13px; grid-column:2; }
+.brow .badge { background:#fff; }
 .mrow { margin:0 0 16px; }
 .mrow .k b { font-weight:600; display:block; }
 .mrow .k small { color:var(--muted); font-size:12.5px; }
@@ -301,6 +308,28 @@ function memoryFooter() {
   const tone = M.err ? ["cross", "bad"] : ["ring", "muted"];
   return `<div class="foot"><div class="grow"></div><span class="chip tone-${tone[1]}">${ico(tone[0], "tone-" + tone[1])}${esc(status)}</span><button class="btn primary" data-act="mem_purge">Clean standby list now</button></div>`;
 }
+function boostPanel() {
+  const B = S.boost;
+  const row = x => `<label class="brow ${x.on ? "on" : ""}"><input class="cb" type="checkbox" data-boost="${x.id}" ${x.on ? "checked" : ""} aria-label="${esc(x.title)}">
+    <span class="n">${esc(x.title)}<span class="badge">${esc(x.effect)}</span>${x.restart ? `<span class="badge">Needs restart</span>` : ""}</span><span class="w">${esc(x.why)}</span></label>`;
+  const rec = B.items.filter(x => x.rec), opt = B.items.filter(x => !x.rec);
+  return `<div class="scroll"><div class="pw">
+    ${B.err ? `<p class="note-warn">${esc(B.err)}</p>` : ""}
+    <section><div class="rec">${ico("info")}<div><b>Honest expectations</b><small>These settings remove small delays and background work. Expect smoother frame times and a snappier mouse, not a big jump in FPS. The biggest gains are the power plan (Power plan tab), a current graphics driver (Updates tab) and the in-game latency setting below. Every switch can be turned off again and puts back the exact value it replaced.</small></div></div></section>
+    <section><h3>Recommended</h3>${rec.map(row).join("")}</section>
+    <section><h3>Optional: try it and keep it only if games feel better</h3>${opt.map(row).join("")}</section>
+    <section><h3>Lowest input lag: a setting inside the game</h3>
+      <p class="mhelp" style="margin-top:0"><b>${esc(B.tipName)}.</b> ${esc(B.tip)}${B.gpus ? ` <span class="muted">Graphics card found: ${esc(B.gpus)}.</span>` : ""}</p>
+      <p class="mhelp">Also: use full screen or borderless mode, and if the screen supports G-Sync or FreeSync, cap the frame rate a few FPS below the refresh rate.</p></section>
+  </div></div>`;
+}
+
+function boostFooter() {
+  const B = S.boost;
+  return `<div class="foot"><button class="btn" data-act="boost_undo" ${B.canUndo ? "" : "disabled"}>Undo everything this program changed</button><div class="grow"></div>
+    <button class="btn primary" data-act="boost_rec" ${B.recDone ? "disabled" : ""}>${B.recDone ? "Recommended settings are on" : "Turn on recommended"}</button></div>`;
+}
+
 function settingsPanel() {
   const T = S.settings;
   return `<div class="scroll"><div class="pw">
@@ -319,6 +348,7 @@ function settingsPanel() {
 function body() {
   if (S.tab === "settings") return settingsPanel();
   if (S.tab === "memory") return memoryPanel();
+  if (S.tab === "boost") return boostPanel();
   if (S.tab === "power") return powerPanel();
   if (S.tab === 'installed') return `<div class="scroll">${installedTable()}</div>`;
   if (S.tab === 'backups') return `<div class="scroll">${backupsTable()}</div>`;
@@ -357,6 +387,7 @@ function powerFooter() {
 function footer() {
   if (S.tab === "settings") return `<div class="foot"><div class="grow"></div><span>Changes are saved at once</span></div>`;
   if (S.tab === "memory") return memoryFooter();
+  if (S.tab === "boost") return boostFooter();
   if (S.tab === "power") return powerFooter();
   const busy = S.busy;
   const showSel = S.tab === 'updates' && S.mode === 'review' && S.rows.length && !busy;
@@ -372,9 +403,9 @@ function footer() {
 function render() {
   if (!S) return;
   const sc = document.querySelector('.scroll'); const top = sc ? sc.scrollTop : 0;
-  const noScan = S.tab === 'memory' || S.tab === 'power' || S.tab === 'settings'; // these tabs have nothing to do with scanning drivers
+  const noScan = S.tab === 'memory' || S.tab === 'power' || S.tab === 'boost' || S.tab === 'settings'; // these tabs have nothing to do with scanning drivers
   const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.rng : null;
-  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['power','Power plan'],['memory','Memory'],['settings','Settings'],['log','Log']];
+  const tabs = [['updates','Updates'],['installed','Installed drivers'],['backups','Backups'],['power','Power plan'],['boost','Game boost'],['memory','Memory'],['settings','Settings'],['log','Log']];
   const prog = S.busy ? (S.progress == null ? '<div class="bar indet"><i></i></div>' : `<div class="bar"><i style="width:${Math.round(S.progress*100)}%"></i></div>`) : '<div class="bar"></div>';
   document.getElementById('app').style.display = 'contents';
   document.getElementById('app').innerHTML = `
@@ -412,6 +443,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.rng) { send('mem_' + t.dataset.rng, {v: +t.value}); return; }
+  if (t.dataset.boost) { send('boost_set', {id: t.dataset.boost, v: t.checked ? 1 : 0}); return; }
   if (t.dataset.set) { send('set_' + t.dataset.set, {v: t.checked ? 1 : 0}); return; }
   if (t.dataset.tick !== undefined) send('tick', {i: +t.dataset.tick, on: t.checked});
   else if (t.dataset.all !== undefined) send('tickAll', {on: t.checked});
@@ -421,7 +453,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'F5') { e.preventDefault(); if (S && !S.busy) send('scan'); }
-  if (e.ctrlKey && '1234567'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','power','memory','settings','log'][+e.key - 1]});
+  if (e.ctrlKey && '12345678'.includes(e.key)) send('tab', {tab: ['updates','installed','backups','power','boost','memory','settings','log'][+e.key - 1]});
   if (e.key === 'Escape' && S && S.confirm) send('rollbackNo');
 });
 document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, {passive:false});
