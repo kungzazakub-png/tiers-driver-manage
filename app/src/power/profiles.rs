@@ -1,5 +1,5 @@
 //! The four profiles and the setting list. Only documented powercfg settings are used; nothing touches BIOS, voltage,
-//! clocks, C-states, core parking, Defender, Windows Update or thermal protection.
+//! clocks, C-states, hidden processor settings, Defender, Windows Update or thermal protection.
 use super::hw::Tier;
 
 pub struct Setting { pub label: &'static str, pub sub: &'static str, pub guid: &'static str, pub unit: &'static str }
@@ -29,7 +29,7 @@ pub struct Profile {
     pub ultimate_optional: bool,
 }
 
-pub const PROFILES: [Profile; 4] = [
+pub const PROFILES: [Profile; 5] = [
     Profile { tier: Tier::Low, title: "Low spec", suited: "เครื่องเก่า ระดับ Core i3 / Ryzen 3 แรม 4–8 GB", goal: "เสถียรและเย็น ใช้แผน Balanced ไม่ปรับอะไรแรง",
               power_mode_best: false, usb_optional: false, pcie_optional: false, ultimate_optional: false },
     Profile { tier: Tier::Medium, title: "Medium", suited: "ระดับ Core i5 / Ryzen 5 แรม 8–16 GB", goal: "สมดุลระหว่างความแรงกับการกินไฟ",
@@ -37,6 +37,8 @@ pub const PROFILES: [Profile; 4] = [
     Profile { tier: Tier::High, title: "High performance", suited: "Core i5–i7 / Ryzen 5–7 รุ่นใหม่ แรม 16–32 GB", goal: "เน้นเล่นเกมและความไวในการตอบสนอง",
               power_mode_best: true, usb_optional: true, pcie_optional: true, ultimate_optional: false },
     Profile { tier: Tier::Extreme, title: "Extreme performance", suited: "Core i7–i9 / Ryzen 7–9 แรม 32 GB ขึ้นไป เครื่องตั้งโต๊ะที่ระบายความร้อนดี", goal: "ตัดการประหยัดไฟที่ไม่จำเป็นออก ระบบป้องกัน CPU ยังทำงานอยู่",
+              power_mode_best: false, usb_optional: true, pcie_optional: true, ultimate_optional: true },
+    Profile { tier: Tier::Max, title: "Max performance", suited: "เครื่องตั้งโต๊ะที่เสียบไฟตลอด ระบายความร้อนดี ต้องการความไวสูงสุดตอนเล่นเกม", goal: "CPU ไม่ลดความเร็วและไม่ปิดคอร์ตอนเสียบไฟ แลกกับความร้อนและไฟที่สูงขึ้น ใช้ค่าที่ Windows รองรับเท่านั้น",
               power_mode_best: false, usb_optional: true, pcie_optional: true, ultimate_optional: true },
 ];
 
@@ -55,6 +57,12 @@ pub fn changes(p: &Profile, o: Opts) -> Vec<Change> {
         Change { setting: &MAX_STATE, ac: Some(100), dc: Some(100) },
         Change { setting: &COOLING, ac: Some(1), dc: Some(1) },
     ];
+    if p.tier == Tier::Max {
+        // plugged in only: the battery side stays as it is. Minimum 100% and no parked cores keep every core at full clock
+        v[0] = Change { setting: &MIN_STATE, ac: Some(100), dc: Some(5) };
+        v.push(Change { setting: &PARKING_MIN, ac: Some(100), dc: None });
+        v.push(Change { setting: &BOOST_MODE, ac: Some(2), dc: None }); // 2 = Aggressive
+    }
     if p.usb_optional && o.usb_off { v.push(Change { setting: &USB_SUSPEND, ac: Some(0), dc: None }); }
     if p.pcie_optional && o.pcie_off { v.push(Change { setting: &PCIE_LINK, ac: Some(0), dc: None }); }
     v
@@ -84,6 +92,9 @@ mod tests {
     }
     #[test]
     fn minimum_is_never_forced_to_100() {
-        for p in PROFILES.iter() { assert!(changes(p, Opts { usb_off: true, pcie_off: true, ultimate: true, restore_point: true }).iter().all(|c| c.setting.guid != MIN_STATE.guid || c.ac == Some(5))); }
+        let m = changes(profile(Tier::Max), Opts::default());
+        assert!(m.iter().any(|c| c.setting.guid == MIN_STATE.guid && c.ac == Some(100) && c.dc == Some(5)), "Max: 100% only while plugged in");
+        assert!(m.iter().all(|c| c.dc.is_none() || c.setting.guid == MIN_STATE.guid || c.setting.guid == MAX_STATE.guid || c.setting.guid == COOLING.guid));
+        for p in PROFILES.iter().filter(|p| p.tier != Tier::Max) { assert!(changes(p, Opts { usb_off: true, pcie_off: true, ultimate: true, restore_point: true }).iter().all(|c| c.setting.guid != MIN_STATE.guid || c.ac == Some(5))); }
     }
 }

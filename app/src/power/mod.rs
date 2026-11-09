@@ -101,7 +101,7 @@ pub fn apply(env: &Env, tier: Tier, opts: Opts, hw: &Hardware) -> Report {
     let title = "Apply profile";
     let prof = profiles::profile(tier);
     env.log.line(&format!("Apply profile {} requested (usb_off={}, pcie_off={}, ultimate={})", tier.name(), opts.usb_off, opts.pcie_off, opts.ultimate));
-    if tier == Tier::Extreme && hw.on_ac == Some(false) { let r = Report::fail(title, "The Extreme profile is not applied while the PC runs on battery. Plug in the charger first.".into()); env.log.line(&r.failed[0]); return r; }
+    if tier >= Tier::Extreme && hw.on_ac == Some(false) { let r = Report::fail(title, format!("The {} profile is not applied while the PC runs on battery. Plug in the charger first.", prof.title)); env.log.line(&r.failed[0]); return r; }
     let mut rep = Report { title: format!("{title}: {}", prof.title), ..Default::default() };
     // 1. backup first: no backup, no change
     let mut rec = match backup_now(env, "apply", tier.name()) { Ok(r) => r, Err(e) => { env.log.line(&format!("FAILED: {e}")); return Report::fail(title, format!("{e}. Nothing was changed.")); } };

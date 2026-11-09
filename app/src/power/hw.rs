@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 use serde::Deserialize as De;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, PartialOrd, Ord)]
-pub enum Tier { Low, Medium, High, Extreme }
+pub enum Tier { Low, Medium, High, Extreme, Max }
 impl Tier {
-    pub fn name(self) -> &'static str { match self { Tier::Low => "LOW", Tier::Medium => "MEDIUM", Tier::High => "HIGH", Tier::Extreme => "EXTREME" } }
-    pub fn from_key(k: &str) -> Option<Tier> { match k { "low" => Some(Tier::Low), "medium" => Some(Tier::Medium), "high" => Some(Tier::High), "extreme" => Some(Tier::Extreme), _ => None } }
-    pub fn key(self) -> &'static str { match self { Tier::Low => "low", Tier::Medium => "medium", Tier::High => "high", Tier::Extreme => "extreme" } }
+    pub fn name(self) -> &'static str { match self { Tier::Low => "LOW", Tier::Medium => "MEDIUM", Tier::High => "HIGH", Tier::Extreme => "EXTREME", Tier::Max => "MAX" } }
+    pub fn from_key(k: &str) -> Option<Tier> { match k { "low" => Some(Tier::Low), "medium" => Some(Tier::Medium), "high" => Some(Tier::High), "extreme" => Some(Tier::Extreme), "max" => Some(Tier::Max), _ => None } }
+    pub fn key(self) -> &'static str { match self { Tier::Low => "low", Tier::Medium => "medium", Tier::High => "high", Tier::Extreme => "extreme", Tier::Max => "max" } }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]

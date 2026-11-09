@@ -30,12 +30,15 @@ svg { display:block; flex:none; }
 .top .ver { color:var(--muted); font-size:12px; }
 
 /* buttons */
-.btn { font:400 12px var(--font); border-radius:6px; border:1px solid #aabeeb; background:#fff; color:var(--accent-dark); padding:0 16px; height:34px; cursor:pointer; white-space:nowrap; }
-.btn:hover:not(:disabled) { background:var(--accent-soft); }
-.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-size:12px; }
-.btn.primary:hover:not(:disabled) { background:var(--accent-dark); }
-.btn.link { border-color:transparent; background:transparent; padding:0 10px; }
-.btn:disabled { background:var(--off); border-color:var(--off); color:var(--off-text); cursor:default; }
+.btn { font:400 12px var(--font); border-radius:6px; border:1px solid #d3d9e3; border-bottom-color:#bcc4d1; background:#fff; color:var(--text); padding:0 18px; height:34px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; justify-content:center; gap:6px; transition:background .12s, border-color .12s, box-shadow .12s, transform .06s; }
+.btn:hover:not(:disabled) { background:var(--hover); border-color:#aabeeb; color:var(--accent-dark); }
+.btn:active:not(:disabled) { background:var(--accent-soft); transform:translateY(1px); }
+.btn.primary { background:var(--accent); border-color:var(--accent); border-bottom-color:var(--accent-dark); color:#fff; font-weight:600; }
+.btn.primary:hover:not(:disabled) { background:var(--accent-dark); border-color:var(--accent-dark); color:#fff; }
+.btn.primary:active:not(:disabled) { background:var(--accent-dark); }
+.btn.link { border-color:transparent; background:transparent; color:var(--accent-dark); padding:0 10px; }
+.btn.link:hover:not(:disabled) { background:var(--accent-soft); border-color:transparent; }
+.btn:disabled { background:#eef1f5; border-color:#e3e7ed; color:#5d6a7c; cursor:default; }
 .btn.link:disabled { background:transparent; border-color:transparent; }
 .btn:focus-visible, .cb:focus-visible, .tab:focus-visible, .pill:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
@@ -269,7 +272,7 @@ function powerPanel() {
       ${opt("pcie", P.opts.pcie_off, sel.pcie, "ตั้ง PCI Express link state เป็น Off ไม่ลดความเร็วการ์ดจอ/SSD เพื่อประหยัดไฟ (ไม่บังคับ)")}
       ${opt("ultimate", P.opts.ultimate, sel.ultimate, "ใช้แผน Ultimate Performance (ไม่บังคับ)", sel.ultimate ? `<button class="btn" data-act="power_compare" ${P.busy?"disabled":""}>Compare with Balanced</button>` : "")}
     </div></section>
-    <section><h3>Changes that will be applied</h3>${P.batteryBlock ? `<p class="note-warn">โปรไฟล์ Extreme ใช้ตอนใช้แบตเตอรี่ไม่ได้ กรุณาเสียบสายชาร์จก่อน</p>` : ""}
+    <section><h3>Changes that will be applied</h3>${P.batteryBlock ? `<p class="note-warn">โปรไฟล์ Extreme และ Max ใช้ตอนใช้แบตเตอรี่ไม่ได้ กรุณาเสียบสายชาร์จก่อน</p>` : ""}
       <div class="ptbl"><div class="tr th"><div>Setting</div><div>Now</div><div>After</div><div>Note</div></div>${P.preview.map(r => `<div class="tr"><div>${esc(r.label)}</div><div title="${esc(r.current)}">${esc(r.current)}</div><div title="${esc(r.new)}">${esc(r.new)}</div><div class="muted">${esc(r.note)}</div></div>`).join("")}</div></section>`;
   if (P.cmp) h2 += `<section><h3>Ultimate Performance vs Balanced</h3><p style="margin:0 0 6px">${esc(P.cmp.advice)}</p>${P.cmp.available ? `<div class="ptbl cmp"><div class="tr th"><div>Setting</div><div>Balanced</div><div>Ultimate Performance</div></div>${P.cmp.rows.map(r => `<div class="tr ${r.differs?"diff":""}"><div>${esc(r.label)}</div><div>${esc(r.balanced)}</div><div>${esc(r.ultimate)}</div></div>`).join("")}</div>` : ""}</section>`;
   if (P.report) {

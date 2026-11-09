@@ -767,7 +767,7 @@ impl App {
             "vendor": match h.vendor { phw::Vendor::Intel => "Intel", phw::Vendor::Amd => "AMD", phw::Vendor::Unknown => "Unknown" }, "cpu": if h.cpu_name.is_empty() { "Unknown".to_string() } else { h.cpu_name.clone() },
             "cores": if h.threads > 0 { format!("{} cores / {} threads", h.cores, h.threads) } else { "Unknown".into() }, "ram": if h.ram_gb > 0.0 { format!("{:.1} GB", h.ram_gb) } else { "Unknown".into() },
             "windows": h.windows, "type": if h.laptop { "Laptop" } else { "Desktop" }, "source": match h.on_ac { Some(true) => "Plugged in (AC)", Some(false) => "On battery", None => "Unknown" }, "plan": h.active_plan }));
-        let battery_block = p.selected == Tier::Extreme && p.hw.as_ref().map(|h| h.on_ac == Some(false)).unwrap_or(false);
+        let battery_block = p.selected >= Tier::Extreme && p.hw.as_ref().map(|h| h.on_ac == Some(false)).unwrap_or(false);
         json!({
             "loaded": p.loaded, "hw": hw, "recommended": p.recommended.key(), "recommendedName": p.recommended.name(), "why": p.why, "selected": p.selected.key(), "opts": p.opts,
             "preview": p.preview, "report": p.report, "cmp": p.cmp, "status": p.status, "busy": p.busy, "confirmReset": p.confirm_reset, "batteryBlock": battery_block,
