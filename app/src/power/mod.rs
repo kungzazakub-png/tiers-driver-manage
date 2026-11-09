@@ -97,6 +97,22 @@ pub fn backup_now(env: &Env, kind: &str, profile: &str) -> Result<Record, String
     Ok(rec)
 }
 
+/// Game boost: makes the Max plan (a copy of Balanced with the Max profile's settings) without activating it.
+pub const MAX_PLAN: &str = "TierS Gaming - Max performance";
+pub fn create_max_plan(c: &dyn Cfg) -> Result<String, String> {
+    let p = profiles::profile(Tier::Max);
+    let new = cfg::duplicate(c, cfg::BALANCED)?;
+    let fail = |e: String| { let _ = cfg::delete(c, &new); e };
+    cfg::rename(c, &new, MAX_PLAN, &format!("Created by TierS Driver Manage ({})", p.goal)).map_err(&fail)?;
+    for ch in profiles::changes(p, Opts::default()) {
+        let s = ch.setting;
+        if cfg::query(c, &new, s.sub, s.guid).is_none() { continue; } // not supported on this PC
+        if let Some(v) = ch.ac { cfg::set_ac(c, &new, s.sub, s.guid, v).map_err(&fail)?; }
+        if let Some(v) = ch.dc { cfg::set_dc(c, &new, s.sub, s.guid, v).map_err(&fail)?; }
+    }
+    Ok(new)
+}
+
 pub fn apply(env: &Env, tier: Tier, opts: Opts, hw: &Hardware) -> Report {
     let title = "Apply profile";
     let prof = profiles::profile(tier);

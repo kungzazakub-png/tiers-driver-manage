@@ -35,6 +35,17 @@ impl Ctx { fn repaint(&self) { (self.wake)() } }
 pub enum Tab { Updates, Installed, Backups, Power, Boost, Memory, Settings, Log }
 
 /// Boost tab state. `on` is read from the registry when the tab opens and after each change (not on every redraw).
+/// Windows plans for the game picker: one row per name (each Apply in the Power tab makes a new plan with the same name);
+/// the plan already chosen wins so the selection never disappears.
+fn plan_choices(chosen: &str) -> Vec<(String, String)> {
+    let all: Vec<(String, String)> = power::cfg::list(&RealSys).map(|v| v.into_iter().map(|s| (s.guid, s.name)).collect()).unwrap_or_default();
+    let mut out: Vec<(String, String)> = vec![];
+    for p in all.iter() {
+        if out.iter().any(|o| o.1 == p.1) { continue; }
+        out.push(all.iter().find(|q| q.1 == p.1 && q.0 == chosen).unwrap_or(p).clone());
+    }
+    out
+}
 struct BoostUi { on: Vec<bool>, gpus: Vec<String>, loaded: bool, err: String, store: boost::Store, path: std::path::PathBuf, plans: Vec<(String, String)>, watch: game::Watch }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mode { Review, Run, Results }
@@ -167,11 +178,11 @@ impl App {
     fn boost_refresh(&mut self) {
         self.boost.on = boost::TWEAKS.iter().map(|t| boost::is_on(&RegExe, t)).collect();
         if !self.boost.loaded { self.boost.gpus = boost::gpu_names(); self.boost.loaded = true; }
-        self.boost.plans = power::cfg::list(&RealSys).map(|v| v.into_iter().map(|s| (s.guid, s.name)).collect()).unwrap_or_default();
+        self.boost.plans = plan_choices(&self.boost.watch.plan);
         // no plan chosen yet: suggest Ultimate Performance, else High performance
         if self.settings.game_plan.is_empty() {
             let pick = |f: &dyn Fn(&str, &str) -> bool| self.boost.plans.iter().find(|(g, n)| f(g, &n.to_lowercase())).map(|p| p.0.clone());
-            if let Some(g) = pick(&|g, n| g == power::cfg::ULTIMATE || n.contains("ultimate")).or_else(|| pick(&|_, n| n.contains("high performance"))) { self.boost.watch.plan = g; }
+            if let Some(g) = pick(&|_, n| n.contains("tiers gaming - max")).or_else(|| pick(&|g, n| g == power::cfg::ULTIMATE || n.contains("ultimate"))).or_else(|| pick(&|_, n| n.contains("high performance"))) { self.boost.watch.plan = g; }
         }
     }
 
@@ -644,7 +655,10 @@ impl App {
                 self.settings.game_plan = self.boost.watch.plan.clone();
                 self.save_settings();
             },
-            "game_plan" => if let Some(g) = v["guid"].as_str() { if self.boost.plans.iter().any(|p| p.0 == g) { self.settings.game_plan = g.to_string(); self.boost.watch.plan = g.to_string(); self.save_settings(); } },
+            "game_plan" => if let Some(g) = v["guid"].as_str() {
+                let made = if g == "__max" { power::create_max_plan(&RealSys).map_err(|e| self.boost.watch.note = format!("สร้างแผน Max performance ไม่สำเร็จ: {e}")).ok() } else { None };
+                let g = made.as_deref().unwrap_or(g);
+                if made.is_some() { self.boost.plans = plan_choices(g); } if self.boost.plans.iter().any(|p| p.0 == g) { self.settings.game_plan = g.to_string(); self.boost.watch.plan = g.to_string(); self.save_settings(); } },
             "boost_set" => if let (Some(id), Some(on)) = (v["id"].as_str(), v["v"].as_u64().map(|x| x == 1)) { self.boost_apply(id, on); self.boost_refresh(); },
             "boost_rec" => { for t in boost::TWEAKS.iter().filter(|t| t.recommended) { self.boost_apply(t.id, true); } self.boost_refresh(); }
             "boost_undo" => {
