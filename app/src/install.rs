@@ -67,7 +67,13 @@ fn read_text_any(p: &Path) -> String {
 fn pnputil_install(pkg: &Path, sys: &dyn Sys) -> InstallResult {
     let pattern = pkg.join("*.inf");
     let (code, out) = sys.run("pnputil.exe", &["/add-driver", &pattern.to_string_lossy(), "/subdirs", "/install"]);
+    judge_pnputil(code, &out)
+}
+
+fn judge_pnputil(code: i32, out: &str) -> InstallResult {
     let low = out.to_lowercase();
+    // pnputil exits non-zero when no device needed an update: the package is already in the store and the hardware already uses it
+    if code != 0 && code != 3010 && low.contains("driver package is up-to-date on device") { return InstallResult { success: true, reboot: false, message: "Already up to date (this driver is already installed)".into() }; }
     InstallResult { success: code == 0 || code == 3010, reboot: code == 3010 || low.contains("reboot") || low.contains("restart"), message: out.trim().to_string() }
 }
 
@@ -233,6 +239,18 @@ mod tests {
         let w = tmp("f"); let sys = FakeSys::ok(); let http = Fake::with_bytes(vec![]);
         let r = install_catalog_item(&entry("installer", "https://evil.example.com/setup.exe", "A"), &w, &http, &sys, None);
         assert!(r.message.contains("allowed list"));
+    }
+    #[test]
+    fn already_up_to_date_is_not_a_failure() {
+        let out = "Adding driver package: rt640x64.inf
+Driver package added successfully. (Already exists in the system)
+Published Name: oem24.inf
+Driver package is up-to-date on device: PCI\VEN_10EC
+Total driver packages: 1
+Added driver packages: 0";
+        let r = judge_pnputil(259, out);
+        assert!(r.success && !r.reboot && r.message.contains("Already up to date"));
+        assert!(!judge_pnputil(1, "Failed to add driver package").success);
     }
     #[test]
     fn safe_zip_is_installed_with_pnputil() {
