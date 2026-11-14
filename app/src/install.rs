@@ -242,12 +242,7 @@ mod tests {
     }
     #[test]
     fn already_up_to_date_is_not_a_failure() {
-        let out = "Adding driver package: rt640x64.inf
-Driver package added successfully. (Already exists in the system)
-Published Name: oem24.inf
-Driver package is up-to-date on device: PCI\VEN_10EC
-Total driver packages: 1
-Added driver packages: 0";
+        let out = "Adding driver package: rt640x64.inf\nDriver package added successfully. (Already exists in the system)\nPublished Name: oem24.inf\nDriver package is up-to-date on device: PCI-VEN_10EC\nTotal driver packages: 1\nAdded driver packages: 0";
         let r = judge_pnputil(259, out);
         assert!(r.success && !r.reboot && r.message.contains("Already up to date"));
         assert!(!judge_pnputil(1, "Failed to add driver package").success);
